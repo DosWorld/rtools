@@ -56,6 +56,8 @@ At first, you need a few assembler source.
           call _main
           mov  ah,0x4c
           int  0x21
+      section .data
+      params:
 
 and `code.asm`:
   
