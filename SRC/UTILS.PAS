@@ -1,5 +1,4 @@
-{
- MIT License
+{ MIT License
 
 Copyright (c) 2021 Viacheslav Komenda
 
@@ -21,17 +20,16 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-https://github.com/DosWorld/rtools
-
-}
+https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT utils;
 
 INTERFACE
 
 TYPE
-DWORD = LONGINT;
-PWORD = ^WORD;
+
+DWORD  = LONGINT;
+PWORD  = ^WORD;
 PDWORD = ^DWORD;
 
 FUNCTION atoi(s : STRING; default_val : INTEGER) : INTEGER;
@@ -53,38 +51,37 @@ FUNCTION strc2pas(p : PCHAR) : STRING;
 
 IMPLEMENTATION
 
-
 FUNCTION itoa(w : LONGINT) : STRING;
-VAR s : STRING;
+VAR     s : STRING;
 BEGIN
-     str(w, s);
-     itoa := s;
+        str(w, s);
+        itoa := s;
 END;
 
 FUNCTION atoi(s : STRING; default_val : INTEGER) : INTEGER;
-VAR res, err_pos : INTEGER;
+VAR     res, err_pos : INTEGER;
 BEGIN
-     val(s, res, err_pos);
-     IF err_pos <> 0 THEN res := default_val;
-     atoi := res;
+        val(s, res, err_pos);
+        IF err_pos <> 0 THEN res := default_val;
+        atoi := res;
 END;
 
 FUNCTION read_word(VAR f : FILE):WORD;
-VAR n : ARRAY[0..1] OF BYTE;
+VAR     n : ARRAY[0..1] OF BYTE;
 BEGIN
         BlockRead(f, n[0], 2);
         read_word := n[0] or (n[1] SHL 8);
 END;
 
 FUNCTION read_dword(VAR f : FILE):DWORD;
-VAR n : ARRAY[0..3] OF BYTE;
+VAR     n : ARRAY[0..3] OF BYTE;
 BEGIN
         BlockRead(f, n[0], 4);
         read_dword := n[0] or (n[1] SHL 8) or (n[2] SHL 16) or (n[3] SHL 24);
 END;
 
 PROCEDURE write_word(VAR f : FILE; w : WORD);
-VAR n : ARRAY[0..2] OF BYTE;
+VAR     n : ARRAY[0..2] OF BYTE;
 BEGIN
         n[0] := w AND $FF;
         n[1] := (w SHR 8) AND $ff;
@@ -92,7 +89,7 @@ BEGIN
 END;
 
 PROCEDURE write_dword(VAR f : FILE; w : DWORD);
-VAR n : ARRAY[0..3] OF BYTE;
+VAR     n : ARRAY[0..3] OF BYTE;
 BEGIN
         n[0] := w AND $FF;
         n[1] := (w SHR 8) AND $ff;
@@ -112,7 +109,7 @@ BEGIN
 END;
 
 FUNCTION get_str(c : PCHAR) : STRING;
-VAR r : STRING;
+VAR     r : STRING;
 BEGIN
         r := '';
         WHILE c[0] <> #0 DO BEGIN
@@ -128,9 +125,8 @@ BEGIN
         c[1] := CHR((w shr 8) and $FF);
 END;
 
-
 FUNCTION strcmp(p1, p2 : PCHAR) : BOOLEAN;
-VAR r : BOOLEAN;
+VAR     r : BOOLEAN;
 BEGIN
         r := FALSE;
         WHILE p1[0] = p2[0] DO BEGIN
@@ -145,9 +141,9 @@ BEGIN
 END;
 
 FUNCTION strc2pas(p : PCHAR) : STRING;
-VAR r : STRING;
-    i : INTEGER;
-    c : CHAR;
+VAR     r : STRING;
+        i : INTEGER;
+        c : CHAR;
 BEGIN
         i := 0;
         WHILE i < 255 DO BEGIN

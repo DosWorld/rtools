@@ -1,5 +1,4 @@
-{
- MIT License
+{  MIT License
 
 Copyright (c) 2022 Viacheslav Komenda
 
@@ -21,8 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-https://github.com/DosWorld/rtools
-}
+https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 USES utils;
 
@@ -78,9 +76,9 @@ BEGIN
 END;
 
 PROCEDURE read_headers(VAR img : IMAGE);
-VAR  sign    : STRING[6];
-     modsize : DWORD;
-     hdrsize : DWORD;
+VAR     sign    : STRING[6];
+        modsize : DWORD;
+        hdrsize : DWORD;
 BEGIN
         BlockRead(img.i, sign[1], 6);
         sign[0] := #6;
@@ -104,8 +102,8 @@ BEGIN
 END;
 
 PROCEDURE falign(VAR f : FILE; t : INTEGER);
-VAR pos : WORD;
-    c   : ARRAY[0..511] OF CHAR;
+VAR     pos : WORD;
+        c   : ARRAY[0..511] OF CHAR;
 BEGIN
         pos := FilePos(f) MOD t;
         FillChar(c, SizeOf(c), #0);
@@ -120,10 +118,10 @@ BEGIN
 END;
 
 PROCEDURE read_segments(VAR img : IMAGE);
-VAR segtype : WORD;
-    segnum  : WORD;
-    reserv  : WORD;
-    seglen  : DWORD;
+VAR     segtype : WORD;
+        segnum  : WORD;
+        reserv  : WORD;
+        seglen  : DWORD;
 BEGIN        
         WHILE NOT EOF(img.i) DO BEGIN
                 segtype := read_word(img.i);
@@ -191,15 +189,12 @@ BEGIN
 END;
 
 PROCEDURE apply_relocs(VAR img : IMAGE);
-VAR
-        exe_relo_seg   : WORD;
+VAR     exe_relo_seg   : WORD;
         exe_relo_ofs   : WORD;
-
         rdf_relo_seg   : BYTE;
         rdf_relo_ofs   : DWORD;
         rdf_relo_width : BYTE;
         rdf_relo_rseg  : WORD;
-
         c, dst         : PCHAR;
         rlen, rtype    : INTEGER;
         reloc_size     : INTEGER;
@@ -287,11 +282,11 @@ BEGIN
 END;
 
 PROCEDURE convert(VAR img : IMAGE);
-VAR alloc_size     : WORD;
-    img_size       : DWORD;
-    i              : INTEGER;
-    jmp_instr      : ARRAY[0..3] OF BYTE;
-    jmp_addr       : WORD;
+VAR     alloc_size : WORD;
+        img_size   : DWORD;
+        i          : INTEGER;
+        jmp_instr  : ARRAY[0..3] OF BYTE;
+        jmp_addr   : WORD;
 BEGIN
         IF img.verbose THEN BEGIN
                 WriteLn('Input file:  ', img.infname);
@@ -369,9 +364,10 @@ BEGIN
 END;
 
 PROCEDURE parse_args(VAR img : IMAGE);
-VAR c               : CHAR;
-    pc, pos, len, i : INTEGER;
-    str             : STRING;
+VAR     c       : CHAR;
+        pc, pos : INTEGER;
+        len, i  : INTEGER;
+        str     : STRING;
 BEGIN
         i := 1;
         pc := ParamCount;
@@ -438,8 +434,9 @@ BEGIN
         END;
 END;
 
-VAR img : IMAGE;
-    i   : INTEGER;
+VAR     img : IMAGE;
+        i   : INTEGER;
+
 BEGIN
         FillChar(img, sizeof(IMAGE), #0);
 

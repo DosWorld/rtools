@@ -1,5 +1,4 @@
-{
- MIT License
+{ MIT License
 
 Copyright (c) 2022 Viacheslav Komenda
 
@@ -21,16 +20,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-https://github.com/DosWorld/rtools
-
-}
+https://github.com/DosWorld/rtools }
 {$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}
 {$M 16000, 500000, 650000}
 USES utils, rldutil, dos;
 
 CONST
 
-SEG_SIZE = 65500;
+SEG_SIZE    = 65500;
 RELOC_WIDTH = 2;
 
 PROCEDURE Help(VAR ctx : RLCTX);
@@ -55,9 +52,9 @@ BEGIN
 END;
 
 PROCEDURE save_rdf(VAR ctx : RLCTX);
-VAR o          : FILE;
-    p0, p1, p2 : DWORD;
-    i          : INTEGER;
+VAR     o          : FILE;
+        p0, p1, p2 : DWORD;
+        i          : INTEGER;
 BEGIN
         IF ctx.err THEN EXIT;
         Assign(o, ctx.outname);
@@ -101,17 +98,17 @@ BEGIN
 END;
 
 PROCEDURE remove_unused_imports(r : PRDF);
-VAR data     : PCHAR;
-    p        : WORD;
-    ldata    : WORD;
-    rtype    : CHAR;
-    rlen     : WORD;
-    find     : BOOLEAN;
-    rsegnum  : WORD;
-    p1       : WORD;
-    rtype1   : CHAR;
-    rlen1    : WORD;
-    rseg1    : WORD;
+VAR     data     : PCHAR;
+        p        : WORD;
+        ldata    : WORD;
+        rtype    : CHAR;
+        rlen     : WORD;
+        find     : BOOLEAN;
+        rsegnum  : WORD;
+        p1       : WORD;
+        rtype1   : CHAR;
+        rlen1    : WORD;
+        rseg1    : WORD;
 BEGIN
         data := r^.hdr;
         p := 0;
@@ -144,14 +141,13 @@ BEGIN
 END;
 
 PROCEDURE load_rdf(VAR ctx : RLCTX; VAR f : FILE; VAR fname : STRING);
-VAR
-    modsize  : DWORD;
-    hdrsize  : DWORD;
-    r        : PRDF;
-    segtype : WORD;
-    segnum  : WORD;
-    reserv  : WORD;
-    seglen  : DWORD;
+VAR     modsize : DWORD;
+        hdrsize : DWORD;
+        r       : PRDF;
+        segtype : WORD;
+        segnum  : WORD;
+        reserv  : WORD;
+        seglen  : DWORD;
 BEGIN
         Seek(f, FilePos(f) + 6);
         modsize := read_dword(f);
@@ -207,14 +203,14 @@ BEGIN
 END;
 
 PROCEDURE load_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR f : FILE;
-    i : INTEGER;
-    sign1    : STRING[12];
-    sign2    : STRING[12];
-    p        : DWORD;
-    modsize  : DWORD;
-    modstart : DWORD;
-    modname  : STRING;
+VAR     f        : FILE;
+        i        : INTEGER;
+        sign1    : STRING[12];
+        sign2    : STRING[12];
+        p        : DWORD;
+        modsize  : DWORD;
+        modstart : DWORD;
+        modname  : STRING;
 BEGIN
         IF ctx.err THEN EXIT;
         Assign(f, fname);
@@ -262,9 +258,9 @@ BEGIN
 END;
 
 PROCEDURE load_rlib_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR msg     : STRING;
-    i, t, l : INTEGER;
-    path    : STRING;
+VAR     msg     : STRING;
+        i, t, l : INTEGER;
+        path    : STRING;
 BEGIN
         IF ctx.err THEN EXIT;
         load_rdl(ctx, fname);
@@ -297,8 +293,8 @@ BEGIN
 END;
 
 PROCEDURE load_meta_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR t : TEXT;
-    i : INTEGER;
+VAR     t : TEXT;
+        i : INTEGER;
 BEGIN
         IF ctx.err THEN EXIT;
         IF fname[1] <> '@' THEN BEGIN
@@ -323,10 +319,9 @@ BEGIN
 END;
 
 PROCEDURE load_segments(VAR ctx : RLCTX; code , data : PCHAR);
-VAR
-    rdf      : PRDF;
-    f        : FILE;
-    i        : INTEGER;
+VAR     rdf : PRDF;
+        f   : FILE;
+        i   : INTEGER;
 BEGIN
         IF ctx.err THEN EXIT;
         rdf := ctx.rdfs;
@@ -356,7 +351,7 @@ BEGIN
 END;
 
 PROCEDURE link_sym(VAR ctx : RLCTX; sym : PSYMTAB; code, data : PCHAR; code_segnum, data_segnum, bss_segnum : WORD);
-VAR  rdf : PRDF;
+VAR     rdf : PRDF;
 BEGIN
         rdf := sym^.rdf;
         IF sym^.segnum = rdf^.code_segnum THEN BEGIN
@@ -372,27 +367,25 @@ BEGIN
 END;
 
 PROCEDURE link_relocs(VAR ctx : RLCTX; rdf : PRDF; code, data : PCHAR; code_segnum, data_segnum, bss_segnum : WORD);
-VAR
-d     : PCHAR;
-p     : WORD;
-len   : WORD;
-rtype : CHAR;
-rlen  : WORD;
-rdf_relo_seg   : BYTE;
-rdf_relo_ofs   : DWORD;
-rdf_relo_width : BYTE;
-rdf_relo_rseg  : WORD;
-rec            : STRING;
-out_relo_seg   : BYTE;
-out_relo_ofs   : DWORD;
-out_relo_width : BYTE;
-out_relo_rseg  : WORD;
-need_add       : BOOLEAN;
-name           : PCHAR;
-dst_rdf        : PRDF;
-dst_sym        : PSYMTAB;
-self_rel       : BOOLEAN;
-fix            : WORD;
+VAR     d              : PCHAR;
+        p, len         : WORD;
+        rtype          : CHAR;
+        rlen           : WORD;
+        rdf_relo_seg   : BYTE;
+        rdf_relo_ofs   : DWORD;
+        rdf_relo_width : BYTE;
+        rdf_relo_rseg  : WORD;
+        rec            : STRING;
+        out_relo_seg   : BYTE;
+        out_relo_ofs   : DWORD;
+        out_relo_width : BYTE;
+        out_relo_rseg  : WORD;
+        need_add       : BOOLEAN;
+        name           : PCHAR;
+        dst_rdf        : PRDF;
+        dst_sym        : PSYMTAB;
+        self_rel       : BOOLEAN;
+        fix            : WORD;
 BEGIN
         p := 0;
         d := rdf^.hdr;
@@ -493,22 +486,20 @@ BEGIN
 END;
 
 PROCEDURE link_rdf(VAR ctx : RLCTX);
-VAR recs     : PRDFREC;
-    rec      : STRING;
-    startRdf : PRDF;
-    rdf      : PRDF;
-    entry    : STRING;
-    sym      : PSYMTAB;
-
-    code_ofs : WORD;
-    data_ofs : WORD;
-    bss_ofs  : WORD;
-    code     : PCHAR;
-    data     : PCHAR;
-
-    code_segnum : WORD;
-    data_segnum : WORD;
-    bss_segnum  : WORD;
+VAR     recs        : PRDFREC;
+        rec         : STRING;
+        startRdf    : PRDF;
+        rdf         : PRDF;
+        entry       : STRING;
+        sym         : PSYMTAB;
+        code_ofs    : WORD;
+        data_ofs    : WORD;
+        bss_ofs     : WORD;
+        code        : PCHAR;
+        data        : PCHAR;
+        code_segnum : WORD;
+        data_segnum : WORD;
+        bss_segnum  : WORD;
 BEGIN
         IF ctx.err THEN EXIT;
         recs := NIL;
@@ -601,9 +592,9 @@ BEGIN
 END;
 
 PROCEDURE read_params(VAR ctx : RLCTX);
-VAR c               : CHAR;
-    pc, asegm, i    : INTEGER;
-    str             : STRING;
+VAR     c            : CHAR;
+        pc, asegm, i : INTEGER;
+        str          : STRING;
 BEGIN
         ctx.entry_name := 'start';
         ctx.align_segment := 2;
@@ -647,7 +638,8 @@ BEGIN
         Dec(ctx.align_segment);
 END;
 
-VAR ctx : RLCTX;
+VAR     ctx : RLCTX;
+
 BEGIN
         init(ctx);
         read_params(ctx);

@@ -1,5 +1,4 @@
-{
- MIT License
+{ MIT License
 
 Copyright (c) 2022 Viacheslav Komenda
 
@@ -21,8 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-https://github.com/DosWorld/rtools
-}
+https://github.com/DosWorld/rtools }
 {$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}
 {$M 64000, 128000,128000}
 USES utils;
@@ -78,8 +76,8 @@ BEGIN
 END;
 
 PROCEDURE rlib_create(VAR libname : STRING);
-VAR f : FILE;
-    i : INTEGER;
+VAR     f : FILE;
+        i : INTEGER;
 BEGIN
         Assign(f, libname);
         {$I-}
@@ -97,11 +95,11 @@ END;
 
 
 PROCEDURE rlib_add(VAR libname, filename, modname : STRING);
-VAR f, o  : FILE;
-    i     : INTEGER;
-    l     : LONGINT;
-    buf   : ARRAY[1..BUF_SIZE] OF BYTE;
-    inbuf : WORD;
+VAR     f, o  : FILE;
+        i     : INTEGER;
+        l     : LONGINT;
+        buf   : ARRAY[1..BUF_SIZE] OF BYTE;
+        inbuf : WORD;
 BEGIN
         IF Length(modname) > 63 THEN modname[0] := #63;
         Assign(f, libname);
@@ -132,13 +130,13 @@ BEGIN
 END;
 
 PROCEDURE rlib_list(VAR libname : STRING);
-VAR f : FILE;
-    i : INTEGER;
-    p : DWORD;
-    modsize  : DWORD;
-    modstart : DWORD;
-    modname  : STRING;
-    s        : STRING;
+VAR     f        : FILE;
+        i        : INTEGER;
+        p        : DWORD;
+        modsize  : DWORD;
+        modstart : DWORD;
+        modname  : STRING;
+        s        : STRING;
 BEGIN
         Assign(f, libname);
         {$I-}
@@ -178,14 +176,12 @@ BEGIN
         Close(f);
 END;
 
-VAR
-
-cmd      : STRING;
-libname  : STRING;
-filename : STRING;
-modname  : STRING;
-pcount   : INTEGER;
-cmdc     : CHAR;
+VAR     cmd      : STRING;
+        libname  : STRING;
+        filename : STRING;
+        modname  : STRING;
+        pcount   : INTEGER;
+        cmdc     : CHAR;
 
 BEGIN
         cmd := '';

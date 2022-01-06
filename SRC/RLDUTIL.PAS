@@ -1,5 +1,4 @@
-{
- MIT License
+{ MIT License
 
 Copyright (c) 2022 Viacheslav Komenda
 
@@ -21,8 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-https://github.com/DosWorld/rtools
-}
+https://github.com/DosWorld/rtools }
 {$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}
 UNIT rldutil;
 
@@ -32,9 +30,9 @@ USES utils;
 
 CONST
 
-CSEG = 1;
-DSEG = 2;
-BSEG = 3;
+CSEG         = 1;
+DSEG         = 2;
+BSEG         = 3;
 
 RREC_COMMENT = #0;
 RREC_RELOC   = #1;
@@ -149,9 +147,9 @@ BEGIN
 END;
 
 FUNCTION rdfrec_explode(data : PCHAR; len : WORD):PRDFREC;
-VAR r, n : PRDFREC;
-    p : WORD;
-    rlen : INTEGER;
+VAR     r, n : PRDFREC;
+        p    : WORD;
+        rlen : INTEGER;
 BEGIN
         r := NIL;
         p := 0;
@@ -171,7 +169,7 @@ BEGIN
 END;
 
 FUNCTION rdfrec_add(r : PRDFREC; rtype : CHAR; VAR rec : STRING):PRDFREC;
-VAR n    : PRDFREC;
+VAR     n : PRDFREC;
 BEGIN
         GetMem(n, SizeOf(TRDFREC));
         n^.rtype := rtype;
@@ -181,9 +179,9 @@ BEGIN
 END;
 
 PROCEDURE rdfrec_implode(r : PRDFREC; VAR data : PCHAR; VAR len : WORD);
-VAR n    : PRDFREC;
-    p    : WORD;
-    rlen : INTEGER;
+VAR     n    : PRDFREC;
+        p    : WORD;
+        rlen : INTEGER;
 BEGIN
         len := 0;
         data := NIL;
@@ -206,7 +204,7 @@ BEGIN
 END;
 
 FUNCTION rdf_create:PRDF;
-VAR r : PRDF;
+VAR     r : PRDF;
 BEGIN
         GetMem(r, SizeOf(TRDF));
         FillChar(r^, SizeOf(TRDF), #0);
@@ -214,7 +212,7 @@ BEGIN
 END;
 
 PROCEDURE rdf_free(r : PRDF);
-VAR recs : PRDFREC;
+VAR     recs : PRDFREC;
 BEGIN
         IF r = NIL THEN EXIT;
         IF r^.code_alloc <> 0 THEN FreeMem(r^.code, r^.code_alloc);
@@ -229,7 +227,7 @@ BEGIN
 END;
 
 FUNCTION rdf_free_list(rdf : PRDF; all : BOOLEAN) : PRDF;
-VAR r, n : PRDF;
+VAR     r, n : PRDF;
 BEGIN
         r := NIL;
         WHILE rdf <> NIL DO BEGIN
@@ -246,7 +244,7 @@ BEGIN
 END;
 
 FUNCTION basename(s : STRING) : STRING;
-VAR i : INTEGER;
+VAR     i : INTEGER;
 BEGIN
         i := Length(s);
         WHILE i > 0 DO BEGIN
@@ -258,12 +256,12 @@ BEGIN
 END;
 
 FUNCTION lookup_export(rdf : PRDF; name : PCHAR) : PRDF;
-VAR data  : PCHAR;
-    p     : WORD;
-    len   : WORD;
-    rtype : CHAR;
-    rlen  : WORD;
-    r     : PRDF;
+VAR     data  : PCHAR;
+        p     : WORD;
+        len   : WORD;
+        rtype : CHAR;
+        rlen  : WORD;
+        r     : PRDF;
 BEGIN
         r := NIL;
         IF name <> NIL THEN
@@ -285,13 +283,13 @@ BEGIN
 END;
 
 PROCEDURE resolve(VAR ctx : RLCTX; rdf : PRDF);
-VAR data  : PCHAR;
-    p     : WORD;
-    len   : WORD;
-    rtype : CHAR;
-    rlen  : WORD;
-    r     : PRDF;
-    exp   : PRDF;
+VAR     data  : PCHAR;
+        p     : WORD;
+        len   : WORD;
+        rtype : CHAR;
+        rlen  : WORD;
+        r     : PRDF;
+        exp   : PRDF;
 BEGIN
         IF ctx.err THEN EXIT;
         IF rdf = NIL THEN EXIT;
@@ -317,13 +315,13 @@ BEGIN
 END;
 
 PROCEDURE build_gsymtab(VAR ctx : RLCTX);
-VAR  sym   : PSYMTAB;
-     rdf   : PRDF;
-     data  : PCHAR;
-     p     : WORD;
-     len   : WORD;
-     rtype : CHAR;
-     rlen  : WORD;
+VAR     sym   : PSYMTAB;
+        rdf   : PRDF;
+        data  : PCHAR;
+        p     : WORD;
+        len   : WORD;
+        rtype : CHAR;
+        rlen  : WORD;
 BEGIN
         IF ctx.err THEN EXIT;
         rdf := ctx.rdfs;
@@ -362,9 +360,9 @@ BEGIN
 END;
 
 FUNCTION export_gsymtab(VAR ctx : RLCTX; root : PRDFREC):PRDFREC;
-VAR str  : STRING;
-    sym  : PSYMTAB;
-    name : STRING;
+VAR     str  : STRING;
+        sym  : PSYMTAB;
+        name : STRING;
 BEGIN
         sym := ctx.symtab;
         WHILE sym <> NIL DO BEGIN
@@ -378,7 +376,7 @@ BEGIN
 END;
 
 PROCEDURE rdf_reorder(VAR ctx : RLCTX; main : PRDF);
-VAR  r, rdf, root : PRDF;
+VAR     r, rdf, root : PRDF;
 BEGIN
         root := NIL;
         r := ctx.rdfs;
@@ -395,12 +393,12 @@ BEGIN
 END;
 
 FUNCTION get_import_name_by_segnum(rdf : PRDF; segnum : WORD):PCHAR;
-VAR data  : PCHAR;
-    p     : WORD;
-    len   : WORD;
-    rtype : CHAR;
-    rlen  : WORD;
-    r     : PCHAR;
+VAR     data  : PCHAR;
+        p     : WORD;
+        len   : WORD;
+        rtype : CHAR;
+        rlen  : WORD;
+        r     : PCHAR;
 BEGIN
         r := NIL;
         p := 0;
@@ -421,7 +419,7 @@ BEGIN
 END;
 
 FUNCTION lookup_gsymtab(VAR ctx : RLCTX; name : PCHAR) : PSYMTAB;
-VAR r : PSYMTAB;
+VAR     r : PSYMTAB;
 BEGIN
         IF name <> NIL THEN BEGIN
                 r := ctx.symtab;

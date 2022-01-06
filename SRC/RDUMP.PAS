@@ -1,5 +1,4 @@
-{
- MIT License
+{  MIT License
 
 Copyright (c) 2022 Viacheslav Komenda
 
@@ -21,8 +20,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-https://github.com/DosWorld/rtools
-}
+https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 USES utils;
 
@@ -62,8 +60,6 @@ BEGIN
 END;
 
 PROCEDURE WriteGlobal(VAR rdata:STRING);
-VAR
-        i : INTEGER;
 BEGIN
         Write('FLG: ', hexb(ORD(rdata[1])));
         Write(', SEG: ', hexb(ORD(rdata[2])));
@@ -141,11 +137,10 @@ BEGIN
 END;
 
 PROCEDURE DumpSegs(VAR f : FILE; modlen : LONGINT);
-VAR
-        segtype  : WORD;
-        segnum   : WORD;
-        reserv   : WORD;
-        seglen   : LONGINT;
+VAR     segtype : WORD;
+        segnum  : WORD;
+        reserv  : WORD;
+        seglen  : LONGINT;
 BEGIN
         WHILE NOT eof(f) DO BEGIN
                 BlockRead(f, segtype, SizeOf(segtype));
@@ -166,16 +161,15 @@ BEGIN
         END;
 END;
 
-VAR
-        f : FILE;
-        sign    : STRING;
-        fullen  : LONGINT;
-        modlen  : LONGINT;
-        hdrlen  : LONGINT;
-        rtype   : BYTE;
-        rdata   : STRING;
+VAR     f      : FILE;
+        sign   : STRING;
+        fullen : LONGINT;
+        modlen : LONGINT;
+        hdrlen : LONGINT;
+        rtype  : BYTE;
+        rdata  : STRING;
 BEGIN
-        Writeln('RDFDUMP for NASM-0.98.39  (c) 2020 by DosWorld.  MIT License');
+        Writeln('RDFDUMP for NASM-0.98.39  (c) 2022 by DosWorld.  MIT License');
         Writeln;
         IF PARAMCOUNT <> 1 THEN BEGIN
                 Writeln('usage: RDUMP filename.rdf');
