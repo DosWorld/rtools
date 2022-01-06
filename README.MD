@@ -44,11 +44,11 @@ At first, you need a few assembler source.
 
 `boot.asm`:
 
-   bits 16
-   global start
-   section .text
-   extern _main
-   start:
+      bits 16
+      global start
+      section .text
+      extern _main
+      start:
           mov  ax,seg params
           mov  ds,ax
           mov  es,ax
@@ -59,34 +59,34 @@ At first, you need a few assembler source.
 
 and `code.asm`:
   
-   bits 16
-   global _main
-   section .text
-   _main:
-          mov  dx, msg
-          mov  ah, 9
-          int  0x21
-          ret
-   section .data
-   msg:   db  'Hello world$'
+      bits 16
+      global _main
+      section .text
+      _main:
+             mov  dx, msg
+             mov  ah, 9
+             int  0x21
+             ret
+      section .data
+      msg:   db  'Hello world$'
 
 Now it is time to compile it:
 
-   nasm -f rdf boot.asm -o boot.rdf
-   nasm -f rdf code.asm -o code.rdf
+      nasm -f rdf boot.asm -o boot.rdf
+      nasm -f rdf code.asm -o code.rdf
 
 Now, put boot.rdf into lib.rdl:
 
-   rlib /c lib.rdl
-   rlib /a lib.rdl boot.rdf boot
+      rlib /c lib.rdl
+      rlib /a lib.rdl boot.rdf boot
 
 Link them:
 
-   rlink code.rdf boot.rdl -o out.rdf
+      rlink code.rdf boot.rdl -o out.rdf
 
 and create executable: 
 
-  rexe out.rdf
+     rexe out.rdf
 
 So, now, you have `out.exe` 
 
