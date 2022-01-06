@@ -8,8 +8,8 @@ I researched the `OBJ / OMF` format and found it too complicated.
 `AOUTB` has no segment support. `COFF` and `ELF` are also complex and solve
 problems not relevant to MS-DOS.
 
-By chance I came across the `RDOFF2` format from NASM - a
-beautiful and simple format for object modules.
+By chance I meet the `RDOFF2` format from NASM - a beautiful and simple
+format for object modules.
 
 This repository contains tools for working with `RDOFF2` (and source code)
 to help you build small compilers.
