@@ -77,14 +77,14 @@ Now it is time to compile it:
       nasm -f rdf boot.asm -o boot.rdf
       nasm -f rdf code.asm -o code.rdf
 
-Now, put boot.rdf into lib.rdl:
+Now, put `boot.rdf` into library `mylib.rdl`:
 
-      rlib /c lib.rdl
-      rlib /a lib.rdl boot.rdf boot
+      rlib /c mylib.rdl
+      rlib /a mylib.rdl boot.rdf boot
 
-Link them:
+Link them to `out.rdf`:
 
-      rlink code.rdf boot.rdl -o out.rdf
+      rlink code.rdf mylib.rdl -o out.rdf
 
 and create executable: 
 
