@@ -4,9 +4,9 @@ This is MS-DOS tools for linking `RDF`/`RDL` files.
 While playing with small compilers, I noticed one problem for all beginners.
 It lacks runtime-libraries and linkers support.
 
-I researched the `OBJ / OMF` format and found it too complicated.
-`AOUTB` has no segment support. `COFF` and `ELF` are also complex and solve
-problems not relevant to MS-DOS.
+I researched the `OBJ/OMF` format and found it too complicated.
+`AOUTB` has no segment memory support. `COFF` and `ELF` are also complex
+and solve problems non-relevant to MS-DOS.
 
 By chance I meet the `RDOFF2` format from NASM - a beautiful and simple
 format for object modules.
@@ -16,7 +16,7 @@ to help you build small compilers.
 
 `RDF` - NASM builtin format `RDOFF2` for object files. Different version of
 Nasm works different with this files. So, I strongly advise to use
-`NASM version 0.98.39`.
+`NASM version 0.98.39`. See DOC\RDOFF2.TXT and source code.
 
 `RDL` - Again, NASM format but for libraries.
 

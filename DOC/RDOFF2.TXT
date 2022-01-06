@@ -35,12 +35,12 @@
 
  Record types:
 
- 0 - comment
- 1 - relocation
- 2 - symbol import
- 3 - symbol export
+ 0 - Comment
+ 1 - Relocation (can refer own segment or to import-symbol via RSEG-field)
+ 2 - Symbol import
+ 3 - Symbol export
  5 - BSS size
- 6 - segment relocation
+ 6 - Segment relocation
 
 
         Segment structure
@@ -71,10 +71,10 @@
  Segment numbers gret then 2 is used as link between import records
  and relocation records.
 
- Teoreticaly, RDOFF2 can have more then 1 code segment and more then 1 data
- segment, but i never meet this situation.
+ Theoretically, RDOFF2 can have more code-data segments (up to 63 in one file),
+ but i NEVER meet this situation.
 
         Null-segment
         ============
 
- Terminate RDF file and "Segment type" is 0 (and zero-size).
+ Terminate RDF file, has "Segment type" is 0 (and zero-size).
