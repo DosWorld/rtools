@@ -1,0 +1,80 @@
+        RDOFF2 File format description
+        ==============================
+
+ RDOFF2 is pretty simple and have next structre:
+
+   ÚÄÄÄÄÄÂÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+   ³ Ofs ³ Len ³ Description               ³
+   ÃÄÄÄÄÄÅÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+   ³  0  ³  6  ³ Signature (RDOFF2)        ³
+   ³  6  ³  4  ³ Module size               ³
+   ³ 10  ³  4  ³ Headers size              ³
+   ³ 14  ³ ??? ³ Headers                   ³
+   ³  ...                                  ³
+   ³ ??  ³ ??? ³ Segments                  ³
+   ³  ...                                  ³
+   ³ ??    ??? ³ Null-segment              ³
+   ³  EOF                                  ³
+   ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+ Module size calculates as: "Headers size" + 4
+           + length of all segments with headers (and points to EOF).
+
+        Header structure
+        ================
+
+ Header have a format with variable record length:
+
+   ÚÄÄÄÄÄÂÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+   ³ Ofs ³ Len ³ Description               ³
+   ÃÄÄÄÄÄÅÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+   ³  0  ³  1  ³ Record type               ³
+   ³  1  ³  1  ³ Record length             ³
+   ³  2  ³ ... ³ Content (up to 255 bytes) ³
+   ÀÄÄÄÄÄÁÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+ Record types:
+
+ 0 - comment
+ 1 - relocation
+ 2 - symbol import
+ 3 - symbol export
+ 5 - BSS size
+ 6 - segment relocation
+
+
+        Segment structure
+        =================
+
+   ÚÄÄÄÄÄÂÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+   ³ Ofs ³ Len ³ Description               ³
+   ÃÄÄÄÄÄÅÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+   ³  0  ³  2  ³ Segment type              ³
+   ³  2  ³  2  ³ Segment number            ³
+   ³  4  ³  2  ³ Reserved                  ³
+   ³  6  ³  4  ³ Segment length            ³
+   ³ 10  ³ ??? ³ Content                   ³
+   ÀÄÄÄÄÄÁÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+
+ Type of segments:
+
+ 1 - code segment
+ 2 - data segment
+ 3 - BSS
+
+ Very often, segment numbers is:
+
+ 0 - code segment
+ 1 - data segment
+ 2 - BSS
+
+ Segment numbers gret then 2 is used as link between import records
+ and relocation records.
+
+ Teoreticaly, RDOFF2 can have more then 1 code segment and more then 1 data
+ segment, but i never meet this situation.
+
+        Null-segment
+        ============
+
+ Terminate RDF file and "Segment type" is 0 (and zero-size).

@@ -1,0 +1,20 @@
+all: rexe.exe rdump.exe rlib.exe rlink.exe
+
+rexe.exe: rexe.pas utils.pas
+	tpc /m rexe.pas
+
+rlink.exe: rlink.pas utils.pas rldutil.pas
+	tpc /m rlink.pas
+
+rlib.exe: rlib.pas utils.pas
+	tpc /m rlib.pas
+
+rdump.exe: rdump.pas utils.pas
+	tpc /m rdump.pas
+
+install: all
+	copy /Y *.exe ..\BIN\
+
+clean:
+	del *.exe
+	del *.tpu
