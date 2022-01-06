@@ -23,16 +23,20 @@ Nasm works different with this files. So, I strongly advise to use
 * `rdump` - dump utility
 * `rlib` - library manager
 * `rlink` - link multiple RDF/RDL into single `fat RDF` (with resolved
-all dependencies).
+all dependencies). `rlink` is "optimized linker" - remove all unused
+imports and link required symbols only. Also, segment of entry-point
+symbol will be linked first (at segments begin).
 * `rexe` - converter from `fat RDF` to MS-DOS `.EXE` (small memory model, CS=code,
 DS=SS=data+bss+stack) or `.COM` (tiny memory model CS=DS=SS=code+data+bss+stack).
+For `.COM` file, in case when entry point is not first byte - will be generated
+code 0xE9, 0x??, 0x??, 0x90 for `jmp` to entry-point.
 * `nasm` - version `0.98.39`, just recompiled for MS-DOS (no DPMI) with RDF support
-(by default - is disabled).
+(by default - is disabled). No other changes.
 
-I call `fat RDF` similary as `fat JAR` from Java-world. For example you have
-`jar` with your web application (pages and classes), so `fat jar` will contains
-your web application, database drivers classes and web-server (like Tomcat)
-classes.
+I call `fat RDF` similary as named `fat JAR` from Java-world. For example you
+have `jar` with your web application (pages and classes), so `fat jar` will
+contains your web application, database drivers classes and web-server (like
+Tomcat) classes.
 
 If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
