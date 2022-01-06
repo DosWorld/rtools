@@ -49,12 +49,12 @@ At first, you need a few assembler source.
       section .text
       extern _main
       start:
-          mov  ax,seg params
-          mov  ds,ax
-          mov  es,ax
+          mov  ax, seg params
+          mov  ds, ax
+          mov  es, ax
           cld
           call _main
-          mov  ah,0x4c
+          mov  ah, 0x4c
           int  0x21
       section .data
       params:
