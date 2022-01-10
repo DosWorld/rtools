@@ -1,0 +1,31 @@
+UNIT rdfconst;
+
+INTERFACE
+
+CONST
+
+RDFCS    = 1;
+RDFDS    = 2;
+RDFBS    = 3;
+
+RREC_COMMENT   = #0;
+RREC_RELOC     = #1;
+RREC_IMPORT    = #2;
+RREC_GLOBAL    = #3;
+RREC_DLL       = #4;
+RREC_BSS       = #5;
+RREC_SEGRELO   = #6;
+RREC_FARIMPORT = #7;
+RREC_MODNAME   = #8;
+
+RDOFF2_SIGN : STRING[12] = 'RDOFF2';
+RLIB_SIGN1  : STRING[12] = '.sig'+#0;
+
+RWIDTH8  = 1;
+RWIDTH16 = 2;
+RWIDTH32 = 4;
+RWIDTH64 = 8;
+
+IMPLEMENTATION
+
+END.

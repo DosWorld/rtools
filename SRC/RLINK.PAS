@@ -23,77 +23,73 @@ SOFTWARE.
 https://github.com/DosWorld/rtools }
 {$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}
 {$M 16000, 500000, 650000}
-USES utils, rldutil, dos;
+USES utils, rldutil, dos, system2, rdfconst;
 
 CONST
 
 SEG_SIZE    = 65500;
-RELOC_WIDTH = 2;
 
 PROCEDURE Help(VAR ctx : RLCTX);
 BEGIN
-        WriteLn('usage: RLINK [/H] [/E name] [/O out] [/A nn] [/T] [/V] file1.rdf [..file2.rdf]');
-        WriteLn;
-        WriteLn('/E name - Set symbol name for entry point (default is "start")');
-        WriteLn('/O out  - Set output file name');
-        WriteLn('/A nn   - Align segments to nn (2, 4, 8, 16, 32)');
-        WriteLn('/T      - Merge code, data into one segment');
-        WriteLn('/V      - Verbose output');
-        WriteLn('/H      - Show this help');
-        WriteLn;
-        Write('Use environment variable RLIB as library search path.');
+        System.WriteLn('usage: RLINK [/H] [/E name] [/O out] [/A nn] [/T] [/V] file1.rdf [..file2.rdf]');
+        System.WriteLn;
+        System.WriteLn('/E name - Set symbol name for entry point (default is "start")');
+        System.WriteLn('/O out  - Set output file name');
+        System.WriteLn('/A nn   - Align segments to nn (2, 4, 8, 16, 32)');
+        System.WriteLn('/T      - Merge code, data into one segment');
+        System.WriteLn('/V      - Verbose output');
+        System.WriteLn('/H      - Show this help');
+        System.WriteLn;
+        System.Write('Use environment variable RLIB as library search path.');
         IF Length(ctx.rlib) <> 0 THEN BEGIN
-                WriteLn;
-                WriteLn('RLIB=', ctx.rlib);
-        END ELSE WriteLn(' RLIB is empty');
-        WriteLn;
-        WriteLn('Use @MYLIB.TXT as input file name, if you need list from a text file.');
+                System.WriteLn;
+                System.WriteLn('RLIB=', ctx.rlib);
+        END ELSE System.WriteLn(' RLIB is empty');
+        System.WriteLn;
+        System.WriteLn('Use @MYLIB.TXT as input file name, if you need list from a text file.');
         Halt(1);
 END;
 
 PROCEDURE save_rdf(VAR ctx : RLCTX);
-VAR     o          : FILE;
+VAR     o          : BFILE;
         p0, p1, p2 : DWORD;
         i          : INTEGER;
 BEGIN
         IF ctx.err THEN EXIT;
         Assign(o, ctx.outname);
-        {$I-}
-        Rewrite(o, 1);
-        i := IOResult;
-        {$I+}
-        IF i <> 0 THEN BEGIN
+        Rewrite(o);
+        IF NOT IsOpen(o) THEN BEGIN
                 mkerr(ctx, 'Could not write ' + ctx.outname);
                 EXIT;
         END;
-        BlockWrite(o, RDOFF2_SIGN[1], Length(RDOFF2_SIGN));
+        Write(o, RDOFF2_SIGN);
         p0 := FilePos(o);
-        write_dword(o, 0);
+        WriteDWord(o, 0);
         p1 := FilePos(o);
-        write_dword(o, ctx.outrdf^.hdr_size);
-        IF ctx.outrdf^.hdr_size <> 0 THEN BlockWrite(o, ctx.outrdf^.hdr[0], ctx.outrdf^.hdr_size);
+        WriteDWord(o, ctx.outrdf^.hdr_size);
+        BlockWrite(o, ctx.outrdf^.hdr[0], ctx.outrdf^.hdr_size);
 
-        write_word(o, CSEG);
-        write_word(o, ctx.outrdf^.code_segnum);
-        write_word(o, 0);
-        write_dword(o, ctx.outrdf^.code_size);
-        IF ctx.outrdf^.code_size <> 0 THEN BlockWrite(o, ctx.outrdf^.code[0], ctx.outrdf^.code_size);
+        WriteWord(o, CSEG);
+        WriteWord(o, ctx.outrdf^.code_segnum);
+        WriteWord(o, 0);
+        WriteDWord(o, ctx.outrdf^.code_size);
+        BlockWrite(o, ctx.outrdf^.code[0], ctx.outrdf^.code_size);
 
-        write_word(o, DSEG);
-        write_word(o, ctx.outrdf^.data_segnum);
-        write_word(o, 0);
-        write_dword(o, ctx.outrdf^.data_size);
-        IF ctx.outrdf^.data_size <> 0 THEN BlockWrite(o, ctx.outrdf^.data[0], ctx.outrdf^.data_size);
+        WriteWord(o, DSEG);
+        WriteWord(o, ctx.outrdf^.data_segnum);
+        WriteWord(o, 0);
+        WriteDWord(o, ctx.outrdf^.data_size);
+        BlockWrite(o, ctx.outrdf^.data[0], ctx.outrdf^.data_size);
         
-        write_word(o, 0);
-        write_word(o, 0);
-        write_word(o, 0);
-        write_dword(o, 0);
+        WriteWord(o, 0);
+        WriteWord(o, 0);
+        WriteWord(o, 0);
+        WriteDWord(o, 0);
 
         p2 := FilePos(o);
 
         Seek(o, p0);
-        write_dword(o, p2 - p1);
+        WriteDWord(o, p2 - p1);
         Close(o);
 END;
 
@@ -140,7 +136,7 @@ BEGIN
         END;
 END;
 
-PROCEDURE load_rdf(VAR ctx : RLCTX; VAR f : FILE; VAR fname : STRING);
+PROCEDURE load_rdf(VAR ctx : RLCTX; VAR f : BFILE; VAR fname : STRING);
 VAR     modsize : DWORD;
         hdrsize : DWORD;
         r       : PRDF;
@@ -150,8 +146,8 @@ VAR     modsize : DWORD;
         seglen  : DWORD;
 BEGIN
         Seek(f, FilePos(f) + 6);
-        modsize := read_dword(f);
-        hdrsize := read_dword(f);
+        modsize := ReadDWord(f);
+        hdrsize := ReadDWord(f);
         IF hdrsize > 65000 THEN BEGIN
                 mkerr(ctx, 'Too big headers into rdf.');
                 EXIT;
@@ -165,10 +161,10 @@ BEGIN
         GetMem(r^.hdr, r^.hdr_size);
         BlockRead(f, r^.hdr[0], r^.hdr_size);
         WHILE (NOT EOF(f)) AND (NOT ctx.err) DO BEGIN
-                segtype := read_word(f);
-                segnum := read_word(f);
-                reserv := read_word(f);
-                seglen := read_dword(f);
+                segtype := ReadWord(f);
+                segnum := ReadWord(f);
+                reserv := ReadWord(f);
+                seglen := ReadDWord(f);
                 IF segtype = 0 THEN BREAK;
                 IF seglen > 65535 THEN BEGIN
                         mkerr(ctx, 'Too big segment.');
@@ -203,7 +199,7 @@ BEGIN
 END;
 
 PROCEDURE load_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR     f        : FILE;
+VAR     f        : BFILE;
         i        : INTEGER;
         sign1    : STRING[12];
         sign2    : STRING[12];
@@ -214,11 +210,8 @@ VAR     f        : FILE;
 BEGIN
         IF ctx.err THEN EXIT;
         Assign(f, fname);
-        {$I-}
-        Reset(f, 1);
-        i := IOResult;
-        {$I+}
-        IF i <> 0 THEN BEGIN
+        Reset(f);
+        IF NOT IsOpen(f) THEN BEGIN
                 mkerr(ctx, 'Could not read ' + fname);
                 EXIT;
         END;
@@ -232,13 +225,13 @@ BEGIN
         END ELSE IF sign2 = RLIB_SIGN1 THEN BEGIN
                 WHILE (NOT EOF(f)) AND (NOT ctx.err) DO BEGIN
                         p := FilePos(f);
-                        BlockRead(f, modname[1], 255, i);
+                        BlockRead(f, modname[1], 255);
                         modname := strc2pas(@modname[1]);
                         Inc(p, Length(modname) + 1);
                         Seek(f, p);
                         BlockRead(f, sign1[1], 6);
                         sign1[0] := #6;
-                        modsize := read_dword(f);
+                        modsize := ReadDWord(f);
                         modstart := FilePos(f);
                         IF modname[1] <> '.' THEN BEGIN
                                 IF sign1 = RDOFF2_SIGN THEN BEGIN
@@ -293,7 +286,7 @@ BEGIN
 END;
 
 PROCEDURE load_meta_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR     t : TEXT;
+VAR     t : BFILE;
         i : INTEGER;
 BEGIN
         IF ctx.err THEN EXIT;
@@ -303,11 +296,8 @@ BEGIN
         END;
         fname := Copy(fname, 2, Length(fname));
         Assign(t, fname);
-        {$I-}
         Reset(t);
-        i := IOResult;
-        {$I+}
-        IF i <> 0 THEN BEGIN
+        IF t.IOResult <> 0 THEN BEGIN
                 mkerr(ctx, 'Could not read ' + fname);
                 EXIT;
         END;
@@ -320,7 +310,7 @@ END;
 
 PROCEDURE load_segments(VAR ctx : RLCTX; code , data : PCHAR);
 VAR     rdf : PRDF;
-        f   : FILE;
+        f   : BFILE;
         i   : INTEGER;
 BEGIN
         IF ctx.err THEN EXIT;
@@ -328,11 +318,8 @@ BEGIN
         WHILE rdf <> NIL DO BEGIN
                 IF (rdf^.linked) AND ((rdf^.code_size + rdf^.data_size) <> 0) THEN BEGIN
                         Assign(f, rdf^.fname);
-                        {$I-}
-                        Reset(f, 1);
-                        i := IOResult;
-                        {$I+}
-                        IF i <> 0 THEN BEGIN
+                        Reset(f);
+                        IF f.IOResult <> 0 THEN BEGIN
                                 mkerr(ctx, 'Could not read ' + rdf^.fname);
                                 EXIT;
                         END;
@@ -405,7 +392,7 @@ BEGIN
                 self_rel := (rdf_relo_seg AND $40) <> 0;
                 fix := 0;
                 rdf_relo_seg := rdf_relo_seg AND $3F;
-                IF rdf_relo_width <> RELOC_WIDTH THEN mkerr(ctx, 'Invalid reloc width.');
+                IF rdf_relo_width <> RWIDTH16 THEN mkerr(ctx, 'Invalid reloc width.');
                 IF rdf_relo_seg = rdf^.code_segnum THEN BEGIN
                         Inc(rdf_relo_ofs, rdf^.link_code_ofs);
                         rdf_relo_seg := code_segnum;
@@ -513,15 +500,17 @@ BEGIN
         IF ctx.err THEN EXIT;
         ctx.rdfs := rdf_free_list(ctx.rdfs, FALSE);
         rdf_reorder(ctx, startRdf);
-        IF ctx.rdfs <> startRdf THEN mkerr(ctx, 'Wrong reorder!!');
         IF ctx.err THEN EXIT;
+
         code_ofs := 0;
         data_ofs := 0;
         bss_ofs := 0;
-        rdf := ctx.rdfs;
+
         code_segnum := 0;
         data_segnum := 1;
         bss_segnum  := 2;
+
+        rdf := ctx.rdfs;
         WHILE rdf <> NIL DO BEGIN
                 rdf^.link_code_ofs := code_ofs;
                 Inc(code_ofs, rdf^.code_size);
@@ -648,8 +637,8 @@ BEGIN
         rdf_free(ctx.outrdf);
         rdf_free_list(ctx.rdfs, TRUE);
         IF ctx.err THEN BEGIN
-                WriteLn(ctx.errMsg);
-                WriteLn('  use /H for help');
+                WriteLnErr(ctx.errMsg);
+                System.WriteLn('  use /H for help');
                 Halt(1);
         END;
 END.

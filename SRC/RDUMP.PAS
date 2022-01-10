@@ -22,7 +22,7 @@ SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-USES utils;
+USES utils, system2, rdfconst;
 
 CONST
 
@@ -45,37 +45,37 @@ END;
 
 PROCEDURE WriteRelo(VAR rdata:STRING);
 BEGIN
-        Write('SEG: ', hexb(ORD(rdata[1])));
-        Write(', OFS: ', hexdw(PDWORD(@rdata[2])^));
-        Write(', LEN: ', hexb(ORD(rdata[6])));
-        Write(', RSEG: ', hexw(PWORD(@rdata[7])^));
+        System.Write('SEG: ', hexb(ORD(rdata[1])));
+        System.Write(', OFS: ', hexdw(PDWORD(@rdata[2])^));
+        System.Write(', LEN: ', hexb(ORD(rdata[6])));
+        System.Write(', RSEG: ', hexw(PWORD(@rdata[7])^));
 END;
 
 PROCEDURE WriteImport(VAR rdata:STRING);
 BEGIN
-        Write('FLG: ', hexb(ORD(rdata[1])));
-        Write(', SEG: ', hexw(PWORD(@rdata[2])^));
-        Write(', ');
-        Write(strc2pas(@rdata[4]));
+        System.Write('FLG: ', hexb(ORD(rdata[1])));
+        System.Write(', SEG: ', hexw(PWORD(@rdata[2])^));
+        System.Write(', ');
+        System.Write(strc2pas(@rdata[4]));
 END;
 
 PROCEDURE WriteGlobal(VAR rdata:STRING);
 BEGIN
-        Write('FLG: ', hexb(ORD(rdata[1])));
-        Write(', SEG: ', hexb(ORD(rdata[2])));
-        Write(', OFS: ', hexdw(PDWORD(@rdata[3])^));
-        Write(', ');
-        Write(strc2pas(@rdata[7]));
+        System.Write('FLG: ', hexb(ORD(rdata[1])));
+        System.Write(', SEG: ', hexb(ORD(rdata[2])));
+        System.Write(', OFS: ', hexdw(PDWORD(@rdata[3])^));
+        System.Write(', ');
+        System.Write(strc2pas(@rdata[7]));
 END;
 
 PROCEDURE WriteBSS(VAR rdata:STRING);
 BEGIN
-        Write(hexdw(PDWORD(@rdata[1])^));
+        System.Write(hexdw(PDWORD(@rdata[1])^));
 END;
 
 PROCEDURE WriteName(VAR rdata:STRING);
 BEGIN
-        Write(rdata);
+        System.Write(rdata);
 END;
 
 PROCEDURE WriteDefault(VAR rdata:STRING);
@@ -84,126 +84,130 @@ VAR
 BEGIN
         l := Length(rdata);
         IF l > 16 THEN l := 16;
-        FOR i := 1 TO l DO Write(hexb(ORD(rdata[i])), ' ');
+        FOR i := 1 TO l DO System.Write(hexb(ORD(rdata[i])), ' ');
 END;
 
-PROCEDURE DumpRec(rtype : BYTE; VAR rdata : STRING);
+PROCEDURE DumpRec(rtype : CHAR; VAR rdata : STRING);
 BEGIN
         CASE rtype OF
-        1: BEGIN
+        RREC_RELOC: BEGIN
                 { reloc }
-                Write('RELO      ');
+                System.Write('RELO      ');
                 WriteRelo(rdata);
         END;
-        2: BEGIN
+        RREC_IMPORT: BEGIN
                 { import }
-                Write('IMPORT    ');
+                System.Write('IMPORT    ');
                 WriteImport(rdata);
         END;
-        3: BEGIN
+        RREC_GLOBAL: BEGIN
                 { global }
-                Write('GLOBAL    ');
+                System.Write('GLOBAL    ');
                 WriteGlobal(rdata);
         END;
-        4: BEGIN
+        RREC_DLL: BEGIN
                 { dll }
-                Write('DLL       ');
+                System.Write('DLL       ');
                 WriteName(rdata);
         END;
-        5: BEGIN
+        RREC_BSS: BEGIN
                 { bss }
-                Write('BSS       ');
+                System.Write('BSS       ');
                 WriteBSS(rdata);
         END;
-        6: BEGIN
+        RREC_SEGRELO: BEGIN
                 { seg relo }
-                Write('SEGRELO   ');
+                System.Write('SEGRELO   ');
                 WriteRelo(rdata);
         END;
-        7: BEGIN
+        RREC_FARIMPORT: BEGIN
                 { far import }
-                Write('FARIMPORT ');
+                System.Write('FARIMPORT ');
                 WriteImport(rdata);
         END;
-        8: BEGIN
+        RREC_MODNAME: BEGIN
                 { mod name }
-                Write('MODNAME   ');
+                System.Write('MODNAME   ');
                 WriteName(rdata);
         END ELSE BEGIN
-                Write('???    ');
+                System.Write('???    ');
                 WriteDefault(rdata);
         END;
         END;
 END;
 
-PROCEDURE DumpSegs(VAR f : FILE; modlen : LONGINT);
+PROCEDURE DumpSegs(VAR f : BFILE; modlen : LONGINT);
 VAR     segtype : WORD;
         segnum  : WORD;
         reserv  : WORD;
         seglen  : LONGINT;
 BEGIN
         WHILE NOT eof(f) DO BEGIN
-                BlockRead(f, segtype, SizeOf(segtype));
-                BlockRead(f, segnum, SizeOf(segnum));
-                BlockRead(f, reserv, SizeOf(reserv));
-                BlockRead(f, seglen, SizeOf(seglen));
-                Write(hexdw(FilePos(f)), ' ');
-                Write(hexdw(seglen), ' ');
-                Write(hexb(segtype), '-');
-                IF segtype = 1 THEN Write('CODE     ')
-                ELSE IF segtype = 2 THEN Write('DATA     ')
-                ELSE Write('??       ');
-                Write(' NUM: ',hexw(segnum), ' ');
-                Write(' RES: ',hexw(reserv));
-                Writeln;
+                segtype := ReadWord(f);
+                segnum := ReadWord(f);
+                reserv := ReadWord(f);
+                seglen := ReadDWord(f);
+                System.Write(hexdw(FilePos(f)), ' ');
+                System.Write(hexdw(seglen), ' ');
+                System.Write(hexb(segtype), '-');
+                IF segtype = 1 THEN System.Write('CODE     ')
+                ELSE IF segtype = 2 THEN System.Write('DATA     ')
+                ELSE System.Write('??       ');
+                System.Write(' NUM: ',hexw(segnum), ' ');
+                System.Write(' RES: ',hexw(reserv));
+                System.Writeln;
                 IF segtype = 0 THEN BREAK;
                 Seek(f, FilePos(f) + seglen);
         END;
 END;
 
-VAR     f      : FILE;
+VAR     f      : BFILE;
         sign   : STRING;
         fullen : LONGINT;
         modlen : LONGINT;
         hdrlen : LONGINT;
-        rtype  : BYTE;
+        rtype  : CHAR;
         rdata  : STRING;
 BEGIN
-        Writeln('RDFDUMP for NASM-0.98.39  (c) 2022 by DosWorld.  MIT License');
-        Writeln;
+        System.Writeln('RDFDUMP for NASM-0.98.39  (c) 2022 by DosWorld.  MIT License');
+        System.Writeln;
         IF PARAMCOUNT <> 1 THEN BEGIN
-                Writeln('usage: RDUMP filename.rdf');
+                WriteLnErr('usage: RDUMP filename.rdf');
                 Halt(1);
         END;
         Assign(f, ParamStr(1));
-        Reset(f, 1);
+        Reset(f);
+        IF f.ioresult <> 0 THEN BEGIN
+                WriteLnErr('Could not open ' + ParamStr(1));
+                Halt(1);
+        END;
         fullen := FileSize(f);
         BlockRead(f, sign[1], 6);
         BlockRead(f, modlen, SizeOf(LONGINT));
         BlockRead(f, hdrlen, SizeOf(LONGINT));
         sign[0] := #6;
-        Writeln('File name:   ', ParamStr(1));
-        Writeln('File size:   ', hexdw(fullen), ' ', fullen);
-        WriteLn('Signature:   ', sign);
-        WriteLn('Module size: ', hexdw(modlen), ' ', modlen);
-        WriteLn('Header size: ', hexdw(hdrlen), ' ', hdrlen);
-        WriteLn;
-        WriteLn('Header record(s)');
-        WriteLn;
+        System.Writeln('File name:   ', ParamStr(1));
+        System.Writeln('File size:   ', hexdw(fullen), ' ', fullen);
+        System.WriteLn('Signature:   ', sign);
+        System.WriteLn('Module size: ', hexdw(modlen), ' ', modlen);
+        System.WriteLn('Header size: ', hexdw(hdrlen), ' ', hdrlen);
+        System.WriteLn;
+        System.WriteLn('Header record(s)');
+        System.WriteLn;
         WHILE hdrlen <> 0 DO BEGIN
-                Write(hexdw(FilePos(f)), ' ');
+                System.Write(hexdw(FilePos(f)), ' ');
                 BlockRead(f, rtype, 1);
                 BlockRead(f, rdata[0], 1);
                 Dec(hdrlen, 2);
                 BlockRead(f, rdata[1], ORD(rdata[0]));
                 Dec(hdrlen, ORD(rdata[0]));
-                Write(hexb(ORD(rdata[0])), ' ', hexb(rtype), '-');
+                System.Write(hexb(ORD(rdata[0])), ' ', hexb(ORD(rtype)), '-');
                 DumpRec(rtype, rdata);
-                Writeln;
+                System.Writeln;
         END;
-        WriteLn;
-        WriteLn('Segment(s)');
-        WriteLn;
+        System.WriteLn;
+        System.WriteLn('Segment(s)');
+        System.WriteLn;
         DumpSegs(f, modlen);
         Close(f);
 END.

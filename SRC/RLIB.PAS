@@ -23,114 +23,94 @@ SOFTWARE.
 https://github.com/DosWorld/rtools }
 {$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}
 {$M 64000, 128000,128000}
-USES utils;
+USES utils, system2, rdfconst;
 
 CONST
 
 RLIB_SIGN1  : STRING[6] = '.sig'+#0;
 RLIB_SIGN2  : STRING[6] = 'RDLIB2';
-RDOFF2_SIGN : STRING[6] = 'RDOFF2';
-
-BUF_SIZE = 8 * 1024;
 
 PROCEDURE Help;
 BEGIN
-        WriteLn('usage: RLIB cmd lib.rdl [file.rdf modulename]');
-        WriteLn;
-        WriteLn('where CMD is:');
-        WriteLn('/C  - Create empty lib.rdl (or overwrite)');
-        WriteLn('/A  - Add to lib.rdl module modulename from file file.rdf');
-        WriteLn('/L  - Show module names from lib.rdl');
-        WriteLn('/H  - Show this help');
+        System.WriteLn('usage: RLIB cmd lib.rdl [file.rdf modulename]');
+        System.WriteLn;
+        System.WriteLn('where CMD is:');
+        System.WriteLn('/C  - Create empty lib.rdl (or overwrite)');
+        System.WriteLn('/A  - Add to lib.rdl module modulename from file file.rdf');
+        System.WriteLn('/L  - Show module names from lib.rdl');
+        System.WriteLn('/H  - Show this help');
         Halt(1);
 END;
 
 PROCEDURE err_exit;
 BEGIN
-        WriteLn('  use /H for help');
+        System.WriteLn('  use /H for help');
         Halt(1);
 END;
 
 PROCEDURE file_err(VAR fname : STRING; i : INTEGER);
+VAR     msg : STRING;
 BEGIN
-        Write(i, ':');
         CASE i OF
-        2: Write('File not found');
-        3: Write('Path not found');
-        4: Write('Too many open files');
-        5: Write('File access denied');
-        6: Write('Invalid file handle');
-        12: Write('Invalid file access code');
-        15: Write('Invalid drive number');
-        100: Write('Disk read error');
-        101: Write('Disk write error');
-        102: Write('File not assigned');
-        103: Write('File not open');
-        104: Write('File not open for input');
-        105: Write('File not open for output');
-        150: Write('Disk is write-protected');
-        ELSE Write('Unknown error');
+        2: msg := 'File not found';
+        3: msg := 'Path not found';
+        4: msg := 'Too many open files';
+        5: msg := 'File access denied';
+        6: msg := 'Invalid file handle';
+        12: msg := 'Invalid file access code';
+        15: msg := 'Invalid drive number';
+        100: msg := 'Disk read error';
+        101: msg := 'Disk write error';
+        102: msg := 'File not assigned';
+        103: msg := 'File not open';
+        104: msg := 'File not open for input';
+        105: msg := 'File not open for output';
+        150: msg := 'Disk is write-protected';
+        ELSE msg := 'Error';
         END;
-        WriteLn(':', fname);
+        WriteLnErr(msg + ':' + fname);
         err_exit;
 END;
 
 PROCEDURE rlib_create(VAR libname : STRING);
-VAR     f : FILE;
+VAR     f : BFILE;
         i : INTEGER;
 BEGIN
         Assign(f, libname);
-        {$I-}
-        ReWrite(f, 1);
-        i := ioResult;
-        {$I+}
-        IF i <> 0 THEN file_err(libname, i);
+        ReWrite(f);
+        IF f.ioResult <> 0 THEN file_err(libname, i);
         BlockWrite(f, RLIB_SIGN1[1], Length(RLIB_SIGN1));
         BlockWrite(f, RLIB_SIGN2[1], Length(RLIB_SIGN2));
-        write_dword(f, SizeOf(DWORD));
-        write_dword(f, 0);
+        WriteDWord(f, SizeOf(DWORD));
+        WriteDWord(f, 0);
         Truncate(f);
         Close(f);
 END;
 
 
 PROCEDURE rlib_add(VAR libname, filename, modname : STRING);
-VAR     f, o  : FILE;
-        i     : INTEGER;
-        l     : LONGINT;
-        buf   : ARRAY[1..BUF_SIZE] OF BYTE;
-        inbuf : WORD;
+VAR     f, o  : BFILE;
 BEGIN
         IF Length(modname) > 63 THEN modname[0] := #63;
         Assign(f, libname);
-        {$I-}
-        Reset(f, 1);
-        i := ioResult;
-        {$I+}
-        IF i <> 0 THEN file_err(libname, i);
+        Reset(f);
+        IF f.ioResult <> 0 THEN file_err(libname, f.ioResult);
         Assign(o, filename);
-        {$I-}
-        Reset(o, 1);
-        i := ioResult;
-        {$I+}
-        IF i <> 0 THEN BEGIN
+        Reset(o);
+        IF NOT IsOpen(o) THEN BEGIN
                 Close(f);
-                file_err(filename, i);
+                file_err(filename, o.ioResult);
         END;
         Seek(f, FileSize(f));
         modname := modname + #0;
-        BlockWrite(f, modname[1], Length(modname));
-        WHILE NOT EOF(o) DO BEGIN
-                BlockRead(o, buf, BUF_SIZE, inbuf);
-                BlockWrite(f, buf, inbuf);
-                IF inbuf = 0 THEN BREAK;
-        END;
+        Write(f, modname);
+        BlockCopy(o, f, FileSize(o));
         Close(o);
         Close(f);
 END;
 
 PROCEDURE rlib_list(VAR libname : STRING);
-VAR     f        : FILE;
+VAR     f        : BFILE;
         i        : INTEGER;
         p        : DWORD;
         modsize  : DWORD;
@@ -139,15 +119,12 @@ VAR     f        : FILE;
         s        : STRING;
 BEGIN
         Assign(f, libname);
-        {$I-}
-        Reset(f, 1);
-        i := ioResult;
-        {$I+}
-        IF i <> 0 THEN file_err(libname, i);
-        WriteLn('Offset' : 8, ' ', 'Size' : 8, ' Module');
+        Reset(f);
+        IF f.ioResult <> 0 THEN file_err(libname, f.ioResult);
+        System.WriteLn('Offset' : 8, ' ', 'Size' : 8, ' Module');
         WHILE NOT EOF(f) DO BEGIN
                 p := FilePos(f);
-                BlockRead(f, modname[1], 255, i);
+                BlockRead(f, modname[1], 255);
                 i := 1;
                 WHILE i < 255 DO BEGIN
                         IF modname[i] = #0 THEN BEGIN
@@ -163,13 +140,13 @@ BEGIN
                 s[0] := #6;
                 IF modname[1] <> '.' THEN BEGIN
                         IF s <> RDOFF2_SIGN THEN BEGIN
-                                WriteLn('Module ', modname, ' has invalid format ', s);
+                                System.WriteLn('Module ', modname, ' has invalid format ', s);
                                 BREAK;
                         END;
                 END;
-                modsize := read_dword(f);
+                modsize := ReadDword(f);
                 IF modname[1] <> '.' THEN BEGIN
-                        WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
+                        System.WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
                 END;
                 Seek(f, FilePos(f) + modsize);
         END;

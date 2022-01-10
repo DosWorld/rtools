@@ -28,22 +28,6 @@ INTERFACE
 
 USES utils;
 
-CONST
-
-CSEG         = 1;
-DSEG         = 2;
-BSEG         = 3;
-
-RREC_COMMENT = #0;
-RREC_RELOC   = #1;
-RREC_IMPORT  = #2;
-RREC_GLOBAL  = #3;
-RREC_BSS     = #5;
-RREC_SEGRELO = #6;
-
-RDOFF2_SIGN : STRING[6] = 'RDOFF2';
-RLIB_SIGN1  : STRING[6] = '.sig'+#0;
-
 TYPE
 
 PRDFREC = ^TRDFREC;
@@ -128,6 +112,8 @@ FUNCTION lookup_gsymtab(VAR ctx : RLCTX; name : PCHAR) : PSYMTAB;
 FUNCTION basename(s : STRING) : STRING;
 
 IMPLEMENTATION
+
+USES rdfconst;
 
 PROCEDURE mkerr(VAR ctx : RLCTX; str : STRING);
 BEGIN
@@ -343,11 +329,11 @@ BEGIN
                                 sym^.segnum := ORD(data[p + 3]);
                                 sym^.linked_seg := 0;
                                 IF sym^.segnum = rdf^.code_segnum THEN
-                                        sym^.segtype := CSEG
+                                        sym^.segtype := RDFCS
                                 ELSE IF sym^.segnum = rdf^.data_segnum THEN
-                                        sym^.segtype := DSEG
+                                        sym^.segtype := RDFDS
                                 ELSE IF sym^.segnum = rdf^.bss_segnum THEN
-                                        sym^.segtype := BSEG
+                                        sym^.segtype := RDFBS
                                 ELSE BEGIN
                                         mkerr(ctx, 'Bad export');
                                         EXIT;

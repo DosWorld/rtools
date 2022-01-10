@@ -26,10 +26,12 @@ UNIT utils;
 
 INTERFACE
 
+USES System2;
+
 TYPE
 
-DWORD  = LONGINT;
 PWORD  = ^WORD;
+DWORD  = LONGINT;
 PDWORD = ^DWORD;
 
 FUNCTION atoi(s : STRING; default_val : INTEGER) : INTEGER;
@@ -41,13 +43,10 @@ FUNCTION get_word(c : PCHAR) : WORD;
 FUNCTION get_dword(c : PCHAR) : DWORD;
 FUNCTION get_str(c : PCHAR) : STRING;
 
-PROCEDURE write_word(VAR f : FILE; w : WORD);
-PROCEDURE write_dword(VAR f : FILE; w : DWORD);
-FUNCTION read_word(VAR f : FILE):WORD;
-FUNCTION read_dword(VAR f : FILE):DWORD;
-
 FUNCTION strcmp(p1, p2 : PCHAR) : BOOLEAN;
 FUNCTION strc2pas(p : PCHAR) : STRING;
+
+PROCEDURE upstr(VAR s : STRING);
 
 IMPLEMENTATION
 
@@ -64,38 +63,6 @@ BEGIN
         val(s, res, err_pos);
         IF err_pos <> 0 THEN res := default_val;
         atoi := res;
-END;
-
-FUNCTION read_word(VAR f : FILE):WORD;
-VAR     n : ARRAY[0..1] OF BYTE;
-BEGIN
-        BlockRead(f, n[0], 2);
-        read_word := n[0] or (n[1] SHL 8);
-END;
-
-FUNCTION read_dword(VAR f : FILE):DWORD;
-VAR     n : ARRAY[0..3] OF BYTE;
-BEGIN
-        BlockRead(f, n[0], 4);
-        read_dword := n[0] or (n[1] SHL 8) or (n[2] SHL 16) or (n[3] SHL 24);
-END;
-
-PROCEDURE write_word(VAR f : FILE; w : WORD);
-VAR     n : ARRAY[0..2] OF BYTE;
-BEGIN
-        n[0] := w AND $FF;
-        n[1] := (w SHR 8) AND $ff;
-        BlockWrite(f, n[0], 2);
-END;
-
-PROCEDURE write_dword(VAR f : FILE; w : DWORD);
-VAR     n : ARRAY[0..3] OF BYTE;
-BEGIN
-        n[0] := w AND $FF;
-        n[1] := (w SHR 8) AND $ff;
-        n[2] := (w SHR 16) AND $ff;
-        n[3] := (w SHR 24) AND $ff;
-        BlockWrite(f, n[0], 4);
 END;
 
 FUNCTION get_word(c : PCHAR) : WORD;
@@ -155,6 +122,36 @@ BEGIN
         END;
         r[0] := CHR(i);
         strc2pas := r;
+END;
+
+PROCEDURE upstr(VAR s : STRING);ASSEMBLER;
+ASM
+        push       ds
+        push       es
+
+        lds        si, s
+        push       ds
+        pop        es
+        cld
+        lodsb
+        mov        cl, al
+        or         cl, cl
+        jz         @end
+        mov        di, si
+@cont:
+        lodsb
+        cmp        al, 'a'
+        jl         @noconv
+        cmp        al, 'z'
+        jg         @noconv
+        sub        al, $20
+@noconv:
+        stosb
+        dec        cl
+        jnz        @cont
+@end:
+        pop        es
+        pop        ds
 END;
 
 END.
