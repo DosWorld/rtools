@@ -1,7 +1,7 @@
         RDOFF2 File format description
         ==============================
 
- RDOFF2 is pretty simple and have next structre:
+ RDOFF2 is pretty simple and have next structure:
 
    ÚÄÄÄÄÄÂÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
    ³ Ofs ³ Len ³ Description               ³
@@ -9,12 +9,13 @@
    ³  0  ³  6  ³ Signature (RDOFF2)        ³
    ³  6  ³  4  ³ Module size               ³
    ³ 10  ³  4  ³ Headers size              ³
+   ³     ³     ³                           ³
    ³ 14  ³ ??? ³ Headers                   ³
    ³  ...                                  ³
    ³ ??  ³ ??? ³ Segments                  ³
    ³  ...                                  ³
-   ³ ??    ??? ³ Null-segment              ³
-   ³  EOF                                  ³
+   ³ ??  ³ ??? ³ Null-segment              ³
+   ³ <EOF>                                 ³
    ÀÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
 
  Module size calculates as: "Headers size" + 4
@@ -25,23 +26,27 @@
 
  Header have a format with variable record length:
 
-   ÚÄÄÄÄÄÂÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
-   ³ Ofs ³ Len ³ Description               ³
-   ÃÄÄÄÄÄÅÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
-   ³  0  ³  1  ³ Record type               ³
-   ³  1  ³  1  ³ Record length             ³
-   ³  2  ³ ... ³ Content (up to 255 bytes) ³
-   ÀÄÄÄÄÄÁÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+   ÚÄÄÄÄÄÂÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+   ³ Ofs ³ Len ³ Description                     ³
+   ÃÄÄÄÄÄÅÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+   ³  0  ³  1  ³ Record type                     ³
+   ³  1  ³  1  ³ Record length                   ³
+   ³  2  ³ ... ³ Content (up to 255 bytes)       ³
+   ÀÄÄÄÄÄÁÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
 
- Record types:
-
- 0 - Comment
- 1 - Relocation (can refer own segment or to import-symbol via RSEG-field)
- 2 - Symbol import
- 3 - Symbol export
- 5 - BSS size
- 6 - Segment relocation
-
+   ÚÄÄÄÄÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
+   ³ Value ³ Record type                         ³
+   ÃÄÄÄÄÄÄÄÅÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ´
+   ³   0   ³ Comment                             ³
+   ³   1   ³ Relocation (can refer to segment or ³
+   ³       ³ to import-symbol via RSEG-field)    ³
+   ³   2   ³ Symbol import                       ³
+   ³   3   ³ Symbol export                       ³
+   ³   4   ³ DLL (name)                          ³
+   ³   5   ³ BSS size                            ³
+   ³   6   ³ Segment relocation                  ³
+   ³   7   ³ Module name                         ³
+   ÀÄÄÄÄÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
 
         Segment structure
         =================
@@ -68,13 +73,18 @@
  1 - data segment
  2 - BSS
 
- Segment numbers gret then 2 is used as link between import records
+ Segment numbers gret then 2 (can be) used as link between import records
  and relocation records.
 
  Theoretically, RDOFF2 can have more code-data segments (up to 63 in one file),
- but i NEVER meet this situation.
+ but i never meet this situation.
+
+ My IMHO: yes, you can put many segments but you will have one .bss segment for
+ all of them. In real-mode DOS it can be painfull. So, better split to
+ multiple rdf "one module = one rdf".
 
         Null-segment
         ============
 
  Terminate RDF file, has "Segment type" is 0 (and zero-size).
+

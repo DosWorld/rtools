@@ -20,22 +20,18 @@ Nasm works different with this files. So, I strongly advise to use
 
 `RDL` - Again, NASM format but for libraries.
 
-* `rdump` - dump utility
-* `rlib` - library manager
-* `rlink` - link multiple RDF/RDL into single `fat RDF` (with resolved
-all dependencies). `rlink` is "optimized linker" - remove all unused
-imports and link required symbols only. Also, segment of entry-point
-symbol will be linked first (at segments begin).
-* `rexe` - converter from `fat RDF` to COM / MZ-EXE / PE-EXE. For `.COM` file,
-in case when entry point is not first byte - will be generated
-code 0xE9, 0x??, 0x??, 0x90 for `jmp` to entry-point.
 * `nasm` - version `0.98.39`, just recompiled for MS-DOS (no DPMI) with RDF support
 (by default - is disabled). No other changes.
+* `rdfdump` - dump utility
+* `rlib` - library manager
+* `rlink` - linker itself
 
-I call `fat RDF` similary as named `fat JAR` from Java-world. For example you
-have `jar` with your web application (pages and classes), so `fat jar` will
-contains your web application, database drivers classes and web-server (like
-Tomcat) classes.
+`rlink` output formats:
+* com - simple MS-DOS .com file
+* mzs - MS-DOS exe, small memory model (CS = code, DS = data,bss,stack)
+* mzh - MS-DOS exe, huge memory model (each rdf have own CS, DS and BSS segment)
+* dospe - PE32 with linked HX-DOS Extender loader (stub).
+* rdf - Linked rdf into one segment (like a .com, but with zero offset and name). Could be used as DLL.
 
 If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
@@ -43,57 +39,13 @@ If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
 # How to use
 
-At first, you need a few assembler source.
+See MAKEFILE in TEST directory.
 
-`boot.asm`:
+# Dependencies
 
-      bits 16
-      global start
-      section .text
-      extern _main
-      start:
-          mov  ax, seg params
-          mov  ds, ax
-          mov  es, ax
-          cld
-          call _main
-          mov  ah, 0x4c
-          int  0x21
-      section .data
-      params:
+Requires System2 library:
 
-and `code.asm`:
-  
-      bits 16
-      global _main
-      section .text
-      _main:
-             mov  dx, msg
-             mov  ah, 9
-             int  0x21
-             ret
-      section .data
-      msg:   db  'Hello world$'
-
-Now it is time to compile it:
-
-      nasm -f rdf boot.asm -o boot.rdf
-      nasm -f rdf code.asm -o code.rdf
-
-Now, put `boot.rdf` into library `mylib.rdl`:
-
-      rlib /c mylib.rdl
-      rlib /a mylib.rdl boot.rdf boot
-
-Link them to `out.rdf`:
-
-      rlink code.rdf mylib.rdl -o out.rdf
-
-and create executable: 
-
-     rexe out.rdf
-
-So, now, you have `out.exe` 
+https://github.com/DosWorld/libsystem2
 
 # Build
 
@@ -109,4 +61,3 @@ NASM version 0.98.39 binaries distributed with own different license
 and copyright-holders (see DOC\NASMLIC.TXT, GNU LGPL).
 
 MIT License
-

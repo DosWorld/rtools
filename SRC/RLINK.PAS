@@ -21,624 +21,1027 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 https://github.com/DosWorld/rtools }
-{$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}
-{$M 16000, 500000, 650000}
-USES utils, rldutil, dos, system2, rdfconst;
+{$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
+USES dos, system2, args, StrBin, rdffmt, rlinkout;
 
-CONST
+{$DEFINE DEBUG}
 
-SEG_SIZE    = 65500;
-
-PROCEDURE Help(VAR ctx : RLCTX);
+FUNCTION basename(s : STRING) : STRING;
+VAR     i : INTEGER;
 BEGIN
-        System.WriteLn('usage: RLINK [/H] [/E name] [/O out] [/A nn] [/T] [/V] file1.rdf [..file2.rdf]');
-        System.WriteLn;
-        System.WriteLn('/E name - Set symbol name for entry point (default is "start")');
-        System.WriteLn('/O out  - Set output file name');
-        System.WriteLn('/A nn   - Align segments to nn (2, 4, 8, 16, 32)');
-        System.WriteLn('/T      - Merge code, data into one segment');
-        System.WriteLn('/V      - Verbose output');
-        System.WriteLn('/H      - Show this help');
-        System.WriteLn;
-        System.Write('Use environment variable RLIB as library search path.');
-        IF Length(ctx.rlib) <> 0 THEN BEGIN
-                System.WriteLn;
-                System.WriteLn('RLIB=', ctx.rlib);
-        END ELSE System.WriteLn(' RLIB is empty');
-        System.WriteLn;
-        System.WriteLn('Use @MYLIB.TXT as input file name, if you need list from a text file.');
-        Halt(1);
+        i := Length(s);
+        WHILE i > 0 DO BEGIN
+                IF s[i] IN [':','\','/'] THEN BEGIN Delete(s, 1, i); BREAK;
+                END;
+                Dec(i);
+        END;
+        basename := s;
 END;
 
-PROCEDURE save_rdf(VAR ctx : RLCTX);
-VAR     o          : BFILE;
-        p0, p1, p2 : DWORD;
-        i          : INTEGER;
+FUNCTION GetRdfMetaInfo(root : PRDFMETA; VAR src : BFILE; VAR hdr : BFILE):PRDFMETA;
+VAR     r        : PRDFMETA;
+        mod_size : DWORD;
+        hdr_size : DWORD;
+        rec      : RDF_SEG;
 BEGIN
-        IF ctx.err THEN EXIT;
-        Assign(o, ctx.outname);
-        Rewrite(o);
-        IF NOT IsOpen(o) THEN BEGIN
-                mkerr(ctx, 'Could not write ' + ctx.outname);
-                EXIT;
-        END;
-        Write(o, RDOFF2_SIGN);
-        p0 := FilePos(o);
-        WriteDWord(o, 0);
-        p1 := FilePos(o);
-        WriteDWord(o, ctx.outrdf^.hdr_size);
-        BlockWrite(o, ctx.outrdf^.hdr[0], ctx.outrdf^.hdr_size);
-
-        WriteWord(o, CSEG);
-        WriteWord(o, ctx.outrdf^.code_segnum);
-        WriteWord(o, 0);
-        WriteDWord(o, ctx.outrdf^.code_size);
-        BlockWrite(o, ctx.outrdf^.code[0], ctx.outrdf^.code_size);
-
-        WriteWord(o, DSEG);
-        WriteWord(o, ctx.outrdf^.data_segnum);
-        WriteWord(o, 0);
-        WriteDWord(o, ctx.outrdf^.data_size);
-        BlockWrite(o, ctx.outrdf^.data[0], ctx.outrdf^.data_size);
-        
-        WriteWord(o, 0);
-        WriteWord(o, 0);
-        WriteWord(o, 0);
-        WriteDWord(o, 0);
-
-        p2 := FilePos(o);
-
-        Seek(o, p0);
-        WriteDWord(o, p2 - p1);
-        Close(o);
-END;
-
-PROCEDURE remove_unused_imports(r : PRDF);
-VAR     data     : PCHAR;
-        p        : WORD;
-        ldata    : WORD;
-        rtype    : CHAR;
-        rlen     : WORD;
-        find     : BOOLEAN;
-        rsegnum  : WORD;
-        p1       : WORD;
-        rtype1   : CHAR;
-        rlen1    : WORD;
-        rseg1    : WORD;
-BEGIN
-        data := r^.hdr;
-        p := 0;
-        ldata := r^.hdr_size;
-        r^.bss_size := 0;
-        WHILE p < ldata DO BEGIN
-                rtype := data[p];
-                rlen := ORD(data[p + 1]);
-                IF rtype = RREC_IMPORT THEN BEGIN
-                        rsegnum := get_word(@data[p + 3]);
-                        find := FALSE;
-                        p1 := 0;
-                        WHILE (p1 < ldata) AND (NOT find) DO BEGIN
-                                rtype1 := data[p1];
-                                rlen1 := ORD(data[p1 + 1]);
-                                IF rtype1 = RREC_RELOC THEN BEGIN
-                                        rseg1 := get_word(@data[p1 + 8]);
-                                        find := rseg1 = rsegnum;
-                                END;
-                                Inc(p1, rlen1 + 2);
-                        END;
-                        IF NOT find THEN BEGIN
-                                data[p] := RREC_COMMENT;
-                        END;
-                END ELSE IF rtype = RREC_BSS THEN BEGIN
-                        Inc(r^.bss_size, get_dword(@data[p + 2]));
+        Seek(src, FilePos(src) + 6);
+        mod_size := ReadDWord(src);
+        hdr_size := ReadDWord(src);
+        GetMem(r, SizeOf(TRDFMETA));
+        FillChar(r^, SizeOf(TRDFMETA), #0);
+        r^.filename := src.filename;
+        r^.hdr_size := hdr_size;
+        r^.bhdr_ofs := FilePos(hdr);
+        r^.next := root;
+        root := r;
+        BlockCopy(src, hdr, hdr_size);
+        WHILE READ_SEG_REC(src, rec) DO BEGIN
+                IF rec.segtype = RDFCS THEN BEGIN
+                        r^.file_code := FilePos(src);
+                        r^.code_size := rec.seglen;
+                        r^.code_segnum := rec.segnum;
+                        Seek(src, FilePos(src) + rec.seglen);
+                END ELSE IF rec.segtype = RDFDS THEN BEGIN
+                        r^.file_data := FilePos(src);
+                        r^.data_size := rec.seglen;
+                        r^.data_segnum := rec.segnum;
+                        Seek(src, FilePos(src) + rec.seglen);
                 END;
-                Inc(p, rlen + 2);
         END;
-END;
-
-PROCEDURE load_rdf(VAR ctx : RLCTX; VAR f : BFILE; VAR fname : STRING);
-VAR     modsize : DWORD;
-        hdrsize : DWORD;
-        r       : PRDF;
-        segtype : WORD;
-        segnum  : WORD;
-        reserv  : WORD;
-        seglen  : DWORD;
-BEGIN
-        Seek(f, FilePos(f) + 6);
-        modsize := ReadDWord(f);
-        hdrsize := ReadDWord(f);
-        IF hdrsize > 65000 THEN BEGIN
-                mkerr(ctx, 'Too big headers into rdf.');
-                EXIT;
-        END;
-        r := rdf_create;
-        r^.next := ctx.rdfs;
-        ctx.rdfs := r;
-        r^.fname := fname;
-        r^.hdr_alloc := hdrsize;
-        r^.hdr_size := hdrsize;
-        GetMem(r^.hdr, r^.hdr_size);
-        BlockRead(f, r^.hdr[0], r^.hdr_size);
-        WHILE (NOT EOF(f)) AND (NOT ctx.err) DO BEGIN
-                segtype := ReadWord(f);
-                segnum := ReadWord(f);
-                reserv := ReadWord(f);
-                seglen := ReadDWord(f);
-                IF segtype = 0 THEN BREAK;
-                IF seglen > 65535 THEN BEGIN
-                        mkerr(ctx, 'Too big segment.');
-                        EXIT;
-                END;
-                IF segtype = CSEG THEN BEGIN
-                        IF r^.code_size <> 0 THEN BEGIN
-                                mkerr(ctx, 'Multiple code-segment.');
-                                EXIT;
-                        END;
-                        r^.code_size := seglen;
-                        r^.code_segnum := segnum;
-                        r^.file_code_ofs := FilePos(f);
-                END ELSE IF segtype = DSEG THEN BEGIN
-                        IF r^.data_size <> 0 THEN BEGIN
-                                mkerr(ctx, 'Multiple data-segment.');
-                                EXIT;
-                        END;
-                        r^.data_size := seglen;
-                        r^.data_segnum := segnum;
-                        r^.file_data_ofs := FilePos(f);
-                END ELSE BEGIN
-                        mkerr(ctx, 'Unknown type of segment.');
-                        EXIT;
-                END;
-                Seek(f, FilePos(f) + seglen);
-        END;
-        remove_unused_imports(r);
-        r^.bss_segnum := r^.data_segnum;
-        IF r^.bss_segnum < r^.code_segnum THEN r^.bss_segnum := r^.code_segnum;
+        r^.bss_segnum := r^.code_segnum;
+        IF r^.bss_segnum < r^.data_segnum THEN r^.bss_segnum := r^.data_segnum;
         Inc(r^.bss_segnum);
+        GetRdfMetaInfo := root;
 END;
 
-PROCEDURE load_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR     f        : BFILE;
-        i        : INTEGER;
-        sign1    : STRING[12];
-        sign2    : STRING[12];
-        p        : DWORD;
-        modsize  : DWORD;
-        modstart : DWORD;
-        modname  : STRING;
+FUNCTION GetRdlMetaInfo(root : PRDFMETA; fname : STRING; VAR hdr : BFILE; VAR err : BOOLEAN):PRDFMETA;
+VAR     ft       : RDF_FILE_TYPE;
+        i        : BFILE;
+        mod_name : STRING;
 BEGIN
-        IF ctx.err THEN EXIT;
-        Assign(f, fname);
-        Reset(f);
-        IF NOT IsOpen(f) THEN BEGIN
-                mkerr(ctx, 'Could not read ' + fname);
-                EXIT;
-        END;
-        BlockRead(f, sign1[1], 6);
-        sign1[0] := #6;
-        sign2 := sign1;
-        sign2[0] := #5;
-        Seek(f, 0);
-        IF sign1 = RDOFF2_SIGN THEN BEGIN
-                load_rdf(ctx, f, fname);
-        END ELSE IF sign2 = RLIB_SIGN1 THEN BEGIN
-                WHILE (NOT EOF(f)) AND (NOT ctx.err) DO BEGIN
-                        p := FilePos(f);
-                        BlockRead(f, modname[1], 255);
-                        modname := strc2pas(@modname[1]);
-                        Inc(p, Length(modname) + 1);
-                        Seek(f, p);
-                        BlockRead(f, sign1[1], 6);
-                        sign1[0] := #6;
-                        modsize := ReadDWord(f);
-                        modstart := FilePos(f);
-                        IF modname[1] <> '.' THEN BEGIN
-                                IF sign1 = RDOFF2_SIGN THEN BEGIN
-                                        Seek(f, p);
-                                        load_rdf(ctx, f, fname);
-                                END ELSE BEGIN
-                                        mkerr(ctx, 'Unknown file format ' + fname);
+        Assign(i, fname);
+        Reset(i);
+        ft := GET_FILE_TYPE(i);
+        IF ft = FILE_RDF THEN BEGIN
+                root := GetRdfMetaInfo(root, i, hdr);
+        END ELSE IF ft = FILE_RDL THEN BEGIN
+                WHILE RDL_NEXT_MODULE(i, mod_name) DO BEGIN
+                        root := GetRdfMetaInfo(root, i, hdr);
+                END;
+        END ELSE err := TRUE;
+        Close(i);
+        GetRdlMetaInfo := root;
+END;
+
+FUNCTION FindFileInRlib(VAR rlib : STRING; fname : STRING) : STRING;
+VAR
+        l, i, t : INTEGER;
+        path    : STRING;
+        bname   : STRING;
+        nname   : STRING;
+BEGIN
+        IF NOT FileExists(fname) THEN BEGIN
+                l := Length(rlib);
+                bname := basename(fname);
+                fname := '';
+                i := 1;
+                IF FileExists(bname) THEN BEGIN
+                        fname := bname;
+                END ELSE WHILE i < l DO BEGIN
+                        path := '';
+                        t := i;
+                        WHILE (t <= l) AND (rlib[t] <> ';') DO BEGIN
+                                Inc(path[0]);
+                                path[ORD(path[0])] := rlib[t];
+                                Inc(t);
+                        END;
+                        i := t + 1;
+                        IF Length(path) > 0 THEN BEGIN
+                                IF NOT (path[Length(path)] IN ['\', '/']) THEN path := path + '\';
+                                nname := path + bname;
+                                IF FileExists(nname) THEN BEGIN
+                                        fname := nname;
                                         BREAK;
                                 END;
                         END;
-                        Seek(f, modstart + modsize);
                 END;
-        END ELSE BEGIN
-                mkerr(ctx, 'Unknown file format ' + fname);
         END;
-        Close(f);
+        {$IFDEF DEBUG}
+        System.Writeln('Load ', fname);
+        {$ENDIF}
+        FindFileInRlib := fname;
 END;
 
-PROCEDURE load_rlib_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR     msg     : STRING;
-        i, t, l : INTEGER;
-        path    : STRING;
+FUNCTION GetRlibMetaInfo(VAR rlib : STRING; root : PRDFMETA; fname : STRING; VAR hdr : BFILE; VAR err : BOOLEAN):PRDFMETA;
+VAR     i        : BFILE;
 BEGIN
-        IF ctx.err THEN EXIT;
-        load_rdl(ctx, fname);
-        IF NOT ctx.err THEN EXIT;
-        l := Length(ctx.rlib);
-        IF l = 0 THEN EXIT;
-        msg := ctx.errMsg;
-        ctx.errMsg := '';
-        fname := basename(fname);
-        i := 1;
-        WHILE i < l DO BEGIN
-                path := '';
-                t := i;
-                WHILE (t <= l) AND (ctx.rlib[t] <> ';') DO BEGIN
-                        path := path + ctx.rlib[t];
-                        Inc(t);
+        IF (fname[0] > #1) AND (fname[1] = '@') THEN BEGIN
+                delete(fname, 1, 1);
+                Assign(i, fname);
+                Reset(i);
+                err := err OR (NOT IsOpen(i));
+                WHILE (NOT EOF(i)) AND (NOT err) DO BEGIN
+                        ReadLn(i, fname);
+                        IF Length(fname) <> 0 THEN IF fname[1] <> '@' THEN
+                                root := GetRlibMetaInfo(rlib, root, fname, hdr, err);
                 END;
-                i := t + 1;
-                IF Length(path) > 0 THEN BEGIN
-                        ctx.err := FALSE;
-                        IF NOT (path[Length(path)] IN ['\', '/']) THEN path := path + '\';
-                        load_rdl(ctx, path + fname);
-                END;
-                IF NOT ctx.err THEN BREAK;
+                Close(i);
+        END ELSE BEGIN
+                fname := FindFileInRlib(rlib, fname);
+                IF Length(fname) = 0 THEN BEGIN
+                        System.Writeln('File ', fname, ' does not exists.');
+                        err := TRUE;
+                END ELSE root := GetRdlMetaInfo(root, fname, hdr, err)
         END;
-        IF ctx.err THEN BEGIN
-                ctx.err := TRUE;
-                ctx.errMsg := msg;
-        END;
+        GetRlibMetaInfo := root;
 END;
 
-PROCEDURE load_meta_rdl(VAR ctx : RLCTX; fname : STRING);
-VAR     t : BFILE;
+FUNCTION FindImportInBuildPlan(import : PIMPORTS; name : RDFNAME; segnum : WORD) : BOOLEAN;
+VAR     r : BOOLEAN;
         i : INTEGER;
 BEGIN
-        IF ctx.err THEN EXIT;
-        IF fname[1] <> '@' THEN BEGIN
-                load_rlib_rdl(ctx, fname);
-                EXIT;
+        r := FALSE;
+        WHILE (import <> NIL) AND (NOT r) DO BEGIN
+                i := 1;
+                WHILE i <= import^.import_count DO BEGIN
+                        IF import^.import[i].rec.seg = segnum THEN BEGIN
+                                r := TRUE;
+                                BREAK;
+                        END ELSE IF import^.import[i].rec.name[0] = name[0] THEN
+                                IF import^.import[i].rec.name = name THEN BEGIN
+                                        r := TRUE;
+                                        BREAK;
+                                END;
+                        Inc(i);
+                END;
+                import := import^.next;
         END;
-        fname := Copy(fname, 2, Length(fname));
-        Assign(t, fname);
-        Reset(t);
-        IF t.IOResult <> 0 THEN BEGIN
-                mkerr(ctx, 'Could not read ' + fname);
-                EXIT;
-        END;
-        WHILE (NOT EOF(t)) AND (NOT ctx.err) DO BEGIN
-                ReadLn(t, fname);
-                IF fname[0] <> #0 THEN load_rlib_rdl(ctx, fname);
-        END;
-        Close(t);
+        FindImportInBuildPlan := r;
 END;
 
-PROCEDURE load_segments(VAR ctx : RLCTX; code , data : PCHAR);
-VAR     rdf : PRDF;
-        f   : BFILE;
-        i   : INTEGER;
+FUNCTION FindExportRdf(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : PLINK_EXPORT;
+VAR     export   : PLINK_EXPORT;
+        exports  : PEXPORTS;
+        r        : PRDFMETA;
+        i        : INTEGER;
 BEGIN
-        IF ctx.err THEN EXIT;
-        rdf := ctx.rdfs;
-        WHILE rdf <> NIL DO BEGIN
-                IF (rdf^.linked) AND ((rdf^.code_size + rdf^.data_size) <> 0) THEN BEGIN
-                        Assign(f, rdf^.fname);
-                        Reset(f);
-                        IF f.IOResult <> 0 THEN BEGIN
-                                mkerr(ctx, 'Could not read ' + rdf^.fname);
-                                EXIT;
+        export := NIL;
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (export = NIL) DO BEGIN
+                exports := r^.linker.export;
+                WHILE (exports <> NIL) AND (export = NIL) DO BEGIN
+                        i := 1;
+                        WHILE i <= r^.linker.export^.export_count DO BEGIN
+                                IF r^.linker.export^.export[i].rec.name[0] = name[0] THEN
+                                        IF r^.linker.export^.export[i].rec.name = name THEN BEGIN
+                                                export := @r^.linker.export^.export[i];
+                                                BREAK;
+                                        END;
+                                Inc(i);
                         END;
-                        IF rdf^.code_size <> 0 THEN BEGIN
-                                Seek(f, rdf^.file_code_ofs);
-                                BlockRead(f, code[rdf^.link_code_ofs], rdf^.code_size);
-                        END;
-                        IF rdf^.data_size <> 0 THEN BEGIN
-                                Seek(f, rdf^.file_data_ofs);
-                                BlockRead(f, data[rdf^.link_data_ofs], rdf^.data_size);
-                        END;
-                        Close(f);
+                        exports := exports^.next;
                 END;
-                rdf := rdf^.next;
+                r := r^.next;
         END;
+        FindExportRdf := export;
 END;
 
-PROCEDURE link_sym(VAR ctx : RLCTX; sym : PSYMTAB; code, data : PCHAR; code_segnum, data_segnum, bss_segnum : WORD);
-VAR     rdf : PRDF;
+FUNCTION ResolveImports(VAR build_plan : IMAGE_BUILD_PLAN; rdf : PRDFMETA) : BOOLEAN;
+VAR     err      : BOOLEAN;
+        r        : PRDFMETA;
+        import   : PIMPORTS;
+        export   : PLINK_EXPORT;
+        i : INTEGER;
 BEGIN
-        rdf := sym^.rdf;
-        IF sym^.segnum = rdf^.code_segnum THEN BEGIN
-                sym^.linked_seg := code_segnum;
-                Inc(sym^.linked_ofs, rdf^.link_code_ofs);
-        END ELSE IF sym^.segnum = rdf^.data_segnum THEN BEGIN
-                sym^.linked_seg := data_segnum;
-                Inc(sym^.linked_ofs, rdf^.link_data_ofs);
-        END ELSE IF sym^.segnum = rdf^.bss_segnum THEN BEGIN
-                sym^.linked_seg := bss_segnum;
-                Inc(sym^.linked_ofs, rdf^.link_bss_ofs);
+        err := FALSE;
+        IF NOT rdf^.linker.linked THEN BEGIN
+                rdf^.linker.linked := TRUE;
+                import := rdf^.linker.import;
+                WHILE (NOT err) AND (import <> NIL) DO BEGIN
+                        i := 1;
+                        WHILE (NOT err) AND (i <= import^.import_count) DO BEGIN
+                                export := FindExportRdf(build_plan, import^.import[i].rec.name);
+                                import^.import[i].export := export;
+                                err := export = NIL;
+                                IF err THEN BEGIN
+                                        System.Writeln('Could not resolve ', import^.import[i].rec.name);
+                                END ELSE IF NOT export^.rdf^.linker.linked THEN BEGIN
+                                        err := ResolveImports(build_plan, export^.rdf);
+                                END;
+                                Inc(i);
+                        END;
+                        import := import^.next;
+                END;
         END;
+        ResolveImports := err;
 END;
 
-PROCEDURE link_relocs(VAR ctx : RLCTX; rdf : PRDF; code, data : PCHAR; code_segnum, data_segnum, bss_segnum : WORD);
-VAR     d              : PCHAR;
-        p, len         : WORD;
-        rtype          : CHAR;
-        rlen           : WORD;
-        rdf_relo_seg   : BYTE;
-        rdf_relo_ofs   : DWORD;
-        rdf_relo_width : BYTE;
-        rdf_relo_rseg  : WORD;
-        rec            : STRING;
-        out_relo_seg   : BYTE;
-        out_relo_ofs   : DWORD;
-        out_relo_width : BYTE;
-        out_relo_rseg  : WORD;
-        need_add       : BOOLEAN;
-        name           : PCHAR;
-        dst_rdf        : PRDF;
-        dst_sym        : PSYMTAB;
-        self_rel       : BOOLEAN;
-        fix            : WORD;
+FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME; strict_import : BOOLEAN) : BOOLEAN;
+VAR     err      : BOOLEAN;
+        r        : PRDFMETA;
+        startRdf : PRDFMETA;
+        s        : STRING;
+        grec     : REXP_REC;
+        irec     : RIMP_REC;
+        rrec     : RRELOC_REC;
+        export   : PEXPORTS;
+        import   : PIMPORTS;
+        p        : DWORD;
+        find     : BOOLEAN;
 BEGIN
-        p := 0;
-        d := rdf^.hdr;
-        need_add := FALSE;
-        len := rdf^.hdr_size;
-        WHILE (p < len) AND (NOT ctx.err) DO BEGIN
-                rtype := d[p];
-                rlen  := ORD(d[p + 1]);
-                IF NOT (rtype IN [RREC_RELOC, RREC_SEGRELO]) THEN BEGIN
-                        Inc(p, rlen + 2);
-                        CONTINUE;
+        err := build_plan.rdfs = NIL;
+        startRdf := NIL;
+
+        { build export tables and lookup entry point }
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_GLOBAL, s) DO BEGIN
+                        GET_EXPORT_REC(s, grec);
+                        IF r^.linker.export = NIL THEN BEGIN
+                                GetMem(export, SizeOf(TEXPORTS));
+                                FillChar(export^, SizeOf(TEXPORTS), #0);
+                                r^.linker.export := export;
+                        END;
+                        IF r^.linker.export^.export_count = REC_IN_PLAN THEN BEGIN
+                                GetMem(export, SizeOf(TEXPORTS));
+                                FillChar(export^, SizeOf(TEXPORTS), #0);
+                                export^.next := r^.linker.export;
+                                r^.linker.export := export;
+                        END;
+                        Inc(r^.linker.export^.export_count);
+                        r^.linker.export^.export[r^.linker.export^.export_count].rec := grec;
+                        r^.linker.export^.export[r^.linker.export^.export_count].rdf := r;
+                        IF grec.name = entry_name THEN startRdf := r;
                 END;
-                rdf_relo_seg := ORD(d[p + 2]);
-                rdf_relo_ofs := get_dword(@d[p + 3]);
-                rdf_relo_width := ORD(d[p + 7]);
-                rdf_relo_rseg := get_word(@d[p + 8]);
-                self_rel := (rdf_relo_seg AND $40) <> 0;
-                fix := 0;
-                rdf_relo_seg := rdf_relo_seg AND $3F;
-                IF rdf_relo_width <> RWIDTH16 THEN mkerr(ctx, 'Invalid reloc width.');
-                IF rdf_relo_seg = rdf^.code_segnum THEN BEGIN
-                        Inc(rdf_relo_ofs, rdf^.link_code_ofs);
-                        rdf_relo_seg := code_segnum;
-                        IF self_rel THEN fix := -rdf^.link_code_ofs;
-                END ELSE IF rdf_relo_seg = rdf^.data_segnum THEN BEGIN
-                        Inc(rdf_relo_ofs, rdf^.link_data_ofs);
-                        rdf_relo_seg := data_segnum;
-                        IF self_rel THEN fix := -rdf^.link_data_ofs;
-                END;
-                IF rtype = RREC_RELOC THEN BEGIN
-                        IF rdf_relo_rseg = rdf^.code_segnum THEN BEGIN
-                                rdf_relo_rseg := code_segnum;
-                                need_add := TRUE;
-                        END ELSE IF rdf_relo_rseg = rdf^.data_segnum THEN BEGIN
-                                rdf_relo_rseg := data_segnum;
-                                need_add := TRUE;
-                        END ELSE IF rdf_relo_rseg = rdf^.bss_segnum THEN BEGIN
-                                rdf_relo_rseg := bss_segnum;
-                                need_add := TRUE;
-                        END ELSE BEGIN
-                                name := get_import_name_by_segnum(rdf, rdf_relo_rseg);
-                                dst_sym := lookup_gsymtab(ctx, name);
-                                IF dst_sym <> NIL THEN BEGIN
-                                        rdf_relo_rseg := dst_sym^.linked_seg;
-                                        fix := dst_sym^.linked_ofs;
-                                        need_add := TRUE;
-                                END ELSE BEGIN
-                                        mkerr(ctx, 'Could not resolve seg ' + itoa(rdf_relo_rseg));
+                r := r^.next;
+        END;
+        IF startRdf = NIL THEN System.Writeln('Entry point ', entry_name, ' not found.');
+        err := err OR (startRdf = NIL);
+
+        { build import tables }
+        r := build_plan.rdfs;
+        WHILE (NOT err) AND (r <> NIL) DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                        GET_RELOC_REC(s, rrec);
+                        IF rrec.rseg <= r^.bss_segnum THEN CONTINUE;
+                        IF FindImportInBuildPlan(r^.linker.import, '', rrec.rseg) THEN CONTINUE;
+                        p := FilePos(build_plan.hdr);
+                        find := FALSE;
+                        Seek(build_plan.hdr, r^.bhdr_ofs);
+                        WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_IMPORT, s) DO BEGIN
+                                GET_IMPORT_REC(s, irec);
+                                IF irec.seg = rrec.rseg THEN BEGIN
+                                        find := TRUE;
+                                        BREAK;
                                 END;
                         END;
-                        IF need_add THEN BEGIN
-                                IF rdf_relo_seg = code_segnum THEN BEGIN
-                                        set_word(@code[rdf_relo_ofs], get_word(@code[rdf_relo_ofs]) + fix);
-                                END ELSE IF rdf_relo_seg = data_segnum THEN BEGIN
-                                        set_word(@data[rdf_relo_ofs], get_word(@data[rdf_relo_ofs]) + fix);
-                                END;
+                        IF NOT find THEN BEGIN
+                                System.Writeln(
+                                'Invalid relocation record - links to non-exists import ', rrec.rseg);
+                                err := TRUE;
                         END;
-
-                        out_relo_seg := rdf_relo_seg;
-                        out_relo_ofs := rdf_relo_ofs;
-                        out_relo_width := rdf_relo_width;
-                        out_relo_rseg := rdf_relo_rseg;
-                END ELSE IF rtype = RREC_SEGRELO THEN BEGIN
-                        IF rdf_relo_rseg = rdf^.code_segnum THEN BEGIN
-                                rdf_relo_rseg := code_segnum;
-                                need_add := TRUE;
-                        END ELSE IF rdf_relo_rseg = rdf^.data_segnum THEN BEGIN
-                                rdf_relo_rseg := data_segnum;
-                                need_add := TRUE;
-                        END ELSE IF rdf_relo_rseg = rdf^.bss_segnum THEN BEGIN
-                                rdf_relo_rseg := bss_segnum;
-                                need_add := TRUE;
-                        END ELSE BEGIN
-                                name := get_import_name_by_segnum(rdf, rdf_relo_rseg);
-                                dst_sym := lookup_gsymtab(ctx, name);
-                                IF dst_sym <> NIL THEN BEGIN
-                                        rdf_relo_rseg := dst_sym^.linked_seg;
-                                        need_add := TRUE;
-                                END ELSE BEGIN
-                                        mkerr(ctx, 'Could not resolve seg ' + itoa(rdf_relo_rseg));
-                                END;
+                        IF r^.linker.import = NIL THEN BEGIN
+                                GetMem(import, SizeOf(TIMPORTS));
+                                FillChar(import^, SizeOf(TIMPORTS), #0);
+                                r^.linker.import := import;
                         END;
-                        out_relo_seg := rdf_relo_seg;
-                        out_relo_ofs := rdf_relo_ofs;
-                        out_relo_width := rdf_relo_width;
-                        out_relo_rseg := rdf_relo_rseg;
+                        IF r^.linker.import^.import_count = REC_IN_PLAN THEN BEGIN
+                                GetMem(import, SizeOf(TIMPORTS));
+                                FillChar(import^, SizeOf(TIMPORTS), #0);
+                                import^.next := r^.linker.import;
+                                r^.linker.import := import;
+                        END;
+                        Inc(r^.linker.import^.import_count);
+                        r^.linker.import^.import[r^.linker.import^.import_count].rec := irec;
+                        Seek(build_plan.hdr, p);
                 END;
-                IF need_add THEN BEGIN
-                        rec := CHR(out_relo_seg)
-                                + bin_dword(out_relo_ofs)
-                                + CHR(out_relo_width)
-                                + bin_word(out_relo_rseg);
-                        ctx.outrdf^.recs := rdfrec_add(ctx.outrdf^.recs, rtype, rec);
-                        need_add := FALSE;
-                END;
-                Inc(p, rlen + 2);
+                r := r^.next;
         END;
+        { resolve imports }
+        IF NOT err THEN err := ResolveImports(build_plan, startRdf);
+        CreateBuildPlan := err;
 END;
 
-PROCEDURE link_rdf(VAR ctx : RLCTX);
-VAR     recs        : PRDFREC;
-        rec         : STRING;
-        startRdf    : PRDF;
-        rdf         : PRDF;
-        entry       : STRING;
-        sym         : PSYMTAB;
-        code_ofs    : WORD;
-        data_ofs    : WORD;
-        bss_ofs     : WORD;
-        code        : PCHAR;
-        data        : PCHAR;
-        code_segnum : WORD;
-        data_segnum : WORD;
-        bss_segnum  : WORD;
+FUNCTION LookupImportByRSeg(r : PRDFMETA; rseg : WORD) : PLINK_IMPORT;
+VAR     import  : PLINK_IMPORT;
+        imports : PIMPORTS;
+        p       : INTEGER;
 BEGIN
-        IF ctx.err THEN EXIT;
-        recs := NIL;
-        entry := ctx.entry_name + #0;
-        startRdf := lookup_export(ctx.rdfs, @entry[1]);
-        IF startRdf = NIL THEN BEGIN
-                mkerr(ctx, 'Could not resolve ' + ctx.entry_name);
-                EXIT;
+        imports := r^.linker.import;
+        import := NIL;
+        WHILE (imports <> NIL) AND (import = NIL) DO BEGIN
+                p := 1;
+                WHILE (p <= imports^.import_count) AND (import = NIL) DO BEGIN
+                        IF imports^.import[p].rec.seg = rseg THEN BEGIN
+                                import := @imports^.import[p];
+                        END;
+                        Inc(p);
+                END;
+                imports := imports^.next;
         END;
-        resolve(ctx, startRdf);
-        IF ctx.err THEN EXIT;
-        ctx.rdfs := rdf_free_list(ctx.rdfs, FALSE);
-        rdf_reorder(ctx, startRdf);
-        IF ctx.err THEN EXIT;
+        LookupImportByRSeg := import;
+END;
 
-        code_ofs := 0;
-        data_ofs := 0;
-        bss_ofs := 0;
-
+FUNCTION LinkSmallModel(VAR build_plan : IMAGE_BUILD_PLAN) : BOOLEAN;
+VAR     err : BOOLEAN;
+        i, new_headers, code, data : BFILE;
+        code_segnum, data_segnum, bss_segnum : BYTE;
+        r         : PRDFMETA;
+        bss_size  : DWORD;
+        cbss_size : DWORD;
+        import    : PLINK_IMPORT;
+        fix       : DWORD;
+        s         : STRING;
+        rrec      : RRELOC_REC;
+        selfr     : BOOLEAN;
+        exports   : PEXPORTS;
+        p         : INTEGER;
+BEGIN
         code_segnum := 0;
         data_segnum := 1;
-        bss_segnum  := 2;
+        bss_segnum := 2;
+        bss_size := 0;
+        ReWriteMemFile(code);
+        ReWriteMemFile(data);
+        ReWriteMemFile(new_headers);
+        err := NOT (IsOpen(code) AND IsOpen(data) AND IsOpen(new_headers));
 
-        rdf := ctx.rdfs;
-        WHILE rdf <> NIL DO BEGIN
-                rdf^.link_code_ofs := code_ofs;
-                Inc(code_ofs, rdf^.code_size);
-                WHILE (code_ofs AND ctx.align_segment) <> 0 DO Inc(code_ofs);
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Assign(i, r^.filename);
+                Reset(i);
+                err := NOT IsOpen(i) ;
+                IF err THEN BREAK;
 
-                rdf^.link_data_ofs := data_ofs;
-                Inc(data_ofs, rdf^.data_size);
-                WHILE (data_ofs AND ctx.align_segment) <> 0 DO Inc(data_ofs);
-
-                rdf^.link_bss_ofs := bss_ofs;
-                Inc(bss_ofs, rdf^.bss_size);
-                WHILE (bss_ofs AND ctx.align_segment) <> 0 DO Inc(bss_ofs);
-
-                rdf := rdf^.next;
-        END;
-        ctx.outrdf^.code_size := code_ofs;
-        ctx.outrdf^.data_size := data_ofs;
-        ctx.outrdf^.bss_size := bss_ofs;
-        code := ctx.outrdf^.code;
-        data := ctx.outrdf^.data;
-        IF ctx.single_segment THEN BEGIN
-                rdf := ctx.rdfs;
-                WHILE rdf <> NIL DO BEGIN
-                        Inc(rdf^.link_data_ofs, code_ofs);
-                        rdf := rdf^.next;
+                r^.linker.smz_bss_ofs := bss_size;
+                cbss_size := 0;
+                Seek(i, r^.file_code);
+                r^.linker.smz_code_ofs := FilePos(code);
+                BlockCopy(i, code, r^.code_size);
+                WHILE (r^.code_size AND 3) <> 0 DO BEGIN
+                        WriteByte(code, $90);
+                        Inc(r^.code_size);
                 END;
-                data_segnum := code_segnum;
-                data := code;
-        END;
-        build_gsymtab(ctx);
-        IF ctx.err THEN EXIT;
-        load_segments(ctx, code, data);
-        IF ctx.err THEN EXIT;
-        ctx.outrdf^.recs := NIL;
-        sym := ctx.symtab;
-        WHILE sym <> NIL DO BEGIN
-                link_sym(ctx, sym, code, data, code_segnum, data_segnum, bss_segnum);
-                sym := sym^.next;
-        END;
-        rdf := ctx.rdfs;
-        WHILE (rdf <> NIL) AND (NOT ctx.err) DO BEGIN
-                link_relocs(ctx, rdf, code, data, code_segnum, data_segnum, bss_segnum);
-                rdf := rdf^.next;
-        END;
-        IF ctx.err THEN EXIT;
-        rec := bin_dword(ctx.outrdf^.bss_size);
-        ctx.outrdf^.recs := rdfrec_add(ctx.outrdf^.recs, RREC_BSS, rec);
-        ctx.outrdf^.recs := export_gsymtab(ctx, ctx.outrdf^.recs);
-        rdfrec_implode(ctx.outrdf^.recs, ctx.outrdf^.hdr, ctx.outrdf^.hdr_size);
-        ctx.outrdf^.hdr_alloc := ctx.outrdf^.hdr_size;
 
-        IF ctx.single_segment THEN ctx.outrdf^.data_size := 0;
-END;
+                Seek(i, r^.file_data);
+                r^.linker.smz_data_ofs := FilePos(data);
+                BlockCopy(i, data, r^.data_size);
+                FilePosAlign(data, 4);
 
-PROCEDURE init(VAR ctx : RLCTX);
-BEGIN
-        FillChar(ctx, SizeOf(RLCTX), #0);
-        ctx.outrdf := rdf_create;
-        GetMem(ctx.outrdf^.code, SEG_SIZE);
-        ctx.outrdf^.code_alloc := SEG_SIZE;
-        GetMem(ctx.outrdf^.data, SEG_SIZE);
-        ctx.outrdf^.data_alloc := SEG_SIZE;
-        ctx.rdfs := NIL;
-        ctx.rlib := getEnv('RLIB');
-        ctx.outrdf^.code_segnum := 0;
-        ctx.outrdf^.data_segnum := 1;
-        ctx.outrdf^.bss_segnum := 2;
-END;
+                Close(i);
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
+                        GET_BSS(s, cbss_size);
+                END;
+                cbss_size := AlignValue(cbss_size, 4);
+                Inc(bss_size, cbss_size);
+                r := r^.next;
+        END;
 
-PROCEDURE read_params(VAR ctx : RLCTX);
-VAR     c            : CHAR;
-        pc, asegm, i : INTEGER;
-        str          : STRING;
-BEGIN
-        ctx.entry_name := 'start';
-        ctx.align_segment := 2;
-        i := 1;
-        pc := ParamCount;
-        WHILE (i <= ParamCount) AND (NOT ctx.err) DO BEGIN
-                str := ParamStr(i);
-                c := str[1];
-                IF (c IN ['-', '/']) AND (str[0] = #2) THEN BEGIN
-                        c := upCase(str[2]);
-                        Inc(i);
-                        IF c IN ['H', '?'] THEN Help(ctx)
-                        ELSE IF c = 'V' THEN ctx.verbose := TRUE
-                        ELSE IF c = 'T' THEN BEGIN
-                                ctx.single_segment := TRUE;
-                        END ELSE IF (c = 'A') AND (i <= pc) THEN BEGIN
-                                asegm := atoi(ParamStr(i), 16);
-                                IF NOT (asegm IN [2, 4, 8, 16, 32]) THEN BEGIN
-                                        mkerr(ctx, 'Invalid segment align value');
-                                        EXIT;
+        { write exports and recalculate offsets }
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                exports := r^.linker.export;
+                WHILE exports <> NIL DO BEGIN
+                        p := 1;
+                        WHILE p <= exports^.export_count DO BEGIN
+                                IF exports^.export[p].rec.seg = exports^.export[p].rdf^.code_segnum THEN BEGIN
+                                        Inc(exports^.export[p].rec.offset, r^.linker.smz_code_ofs);
+                                        exports^.export[p].rec.seg := code_segnum;
+                                END ELSE IF exports^.export[p].rec.seg = exports^.export[p].rdf^.data_segnum THEN BEGIN
+                                        Inc(exports^.export[p].rec.offset, r^.linker.smz_data_ofs);
+                                        exports^.export[p].rec.seg := data_segnum;
+                                END ELSE IF exports^.export[p].rec.seg = exports^.export[p].rdf^.bss_segnum THEN BEGIN
+                                        Inc(exports^.export[p].rec.offset, r^.linker.smz_bss_ofs);
+                                        exports^.export[p].rec.seg := bss_segnum;
                                 END;
-                                ctx.align_segment := asegm;
-                        END ELSE IF (c = 'E') AND (i <= pc) THEN BEGIN
-                                ctx.entry_name := ParamStr(i);
-                                Inc(i);
-                        END ELSE IF (c = 'O') AND (i <= pc) THEN BEGIN
-                                ctx.outname := ParamStr(i);
-                                Inc(i);
-                        END ELSE BEGIN
-                                mkerr(ctx, 'Unknown option /' + c);
-                                EXIT;
+                                SET_EXPORT_REC(exports^.export[p].rec, s);
+                                RDF_WRITE_REC(new_headers, RREC_GLOBAL, s);
+                                Inc(p);
                         END;
-                END ELSE BEGIN
-                        load_meta_rdl(ctx, str);
-                        Inc(i);
+                        exports := exports^.next;
                 END;
+                r := r^.next;
         END;
-        IF ctx.rdfs = NIL THEN mkerr(ctx, 'No input files.');
-        IF Length(ctx.outname) = 0 THEN mkerr(ctx, 'No output file.');
-        IF Length(ctx.entry_name) = 0 THEN mkerr(ctx, 'Empty entry-point symbol name.');
-        Dec(ctx.align_segment);
+
+        { resolve relo }
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                        GET_RELOC_REC(s, rrec);
+                        selfr := (rrec.seg AND $40) <> 0;
+                        fix := 0;
+                        rrec.seg := rrec.seg AND $3F;
+                        IF rrec.seg = r^.code_segnum THEN BEGIN
+                                rrec.seg := code_segnum;
+                                Inc(rrec.offset, r^.linker.smz_code_ofs);
+                                IF selfr THEN fix := -r^.linker.smz_code_ofs
+                                ELSE fix := r^.linker.smz_code_ofs;
+                        END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
+                                rrec.seg := data_segnum;
+                                Inc(rrec.offset, r^.linker.smz_data_ofs);
+                                IF selfr THEN fix := -r^.linker.smz_data_ofs
+                                ELSE fix := r^.linker.smz_data_ofs;
+                        END;
+                        IF rrec.rseg = r^.code_segnum THEN BEGIN
+                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                        END ELSE BEGIN
+                                import := LookupImportByRSeg(r, rrec.rseg);
+                                Inc(fix, import^.export^.rec.offset);
+                                IF import^.export^.rec.seg
+                                        = code_segnum THEN BEGIN
+                                        rrec.rseg := code_segnum;
+                                END ELSE IF import^.export^.rec.seg
+                                        = data_segnum THEN BEGIN
+                                        rrec.rseg := data_segnum;
+                                END ELSE IF import^.export^.rec.seg
+                                        = bss_segnum THEN BEGIN
+                                        rrec.rseg := bss_segnum;
+                                END;
+                        END;
+
+                        IF rrec.seg = code_segnum THEN BEGIN
+                                IncMem(code, rrec.width
+                                        , rrec.offset
+                                        , fix);
+                        END ELSE IF rrec.seg = data_segnum THEN BEGIN
+                                IncMem(data, rrec.width
+                                        , rrec.offset
+                                        , fix);
+                        END;
+                        IF NOT selfr THEN BEGIN
+                                SET_RELOC_REC(rrec, s);
+                                RDF_WRITE_REC(new_headers, RREC_RELOC, s);
+                        END;
+                END;
+                r := r^.next;
+        END;
+
+        IF NOT err THEN BEGIN
+                SET_BSS(bss_size, s);
+                RDF_WRITE_REC(new_headers, RREC_BSS, s);
+                WRITE_RDF(new_headers, code_segnum, code, data_segnum, data, build_plan.linked_out);
+        END;
+        Close(new_headers);
+        Close(code);
+        Close(data);
+        LinkSmallModel := err;
 END;
 
-VAR     ctx : RLCTX;
+FUNCTION LinkAndGenMZH(VAR build_plan : IMAGE_BUILD_PLAN;
+        entry_name : RDFNAME;
+        outfname : STRING;
+        stack_size : LONGINT) : BOOLEAN;
 
+VAR     err      : BOOLEAN;
+        i, o     : BFIle;
+        hdr      : MZ_HEADER;
+        header_paragraphs : WORD;
+        code     : BFile;
+        stack_ss : WORD;
+        r        : PRDFMETA;
+        start    : PLINK_EXPORT;
+        export   : PLINK_EXPORT;
+        import   : PLINK_IMPORT;
+        bss_size : DWORD;
+        s        : STRING;
+        rrec     : RRELOC_REC;
+        mzr      : MZ_RELOC;
+        fix      : WORD;
+        p        : INTEGER;
+        find     : BOOLEAN;
+        selfr    : BOOLEAN;
 BEGIN
-        init(ctx);
-        read_params(ctx);
-        link_rdf(ctx);
-        save_rdf(ctx);
-        rdf_free(ctx.outrdf);
-        rdf_free_list(ctx.rdfs, TRUE);
-        IF ctx.err THEN BEGIN
-                WriteLnErr(ctx.errMsg);
-                System.WriteLn('  use /H for help');
-                Halt(1);
+        err := FALSE;
+        Assign(o, outfname);
+        ReWrite(o);
+        err := NOT IsOpen(o);
+        start := NIL;
+        FillChar(hdr, SizeOf(MZ_HEADER), #0);
+        BlockWrite(o, hdr, SizeOf(MZ_HEADER));
+
+        ReWriteMemFile(code);
+        err := err OR (NOT IsOpen(code));
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Assign(i, r^.filename);
+                Reset(i);
+
+                err := NOT IsOpen(i) ;
+                IF NOT err THEN BEGIN
+                        Seek(i, r^.file_code);
+                        r^.linker.hmz_code_seg := FilePos(code) SHR 4;
+                        BlockCopy(i, code, r^.code_size);
+                        FilePosAlign(code, $10);
+        
+                        Seek(i, r^.file_data);
+                        r^.linker.hmz_data_seg := FilePos(code) SHR 4;
+                        BlockCopy(i, code, r^.data_size);
+                        FilePosAlign(code, $10);
+        
+                        Close(i);
+                END;
+                r := r^.next;
         END;
+        IF NOT err THEN start := FindExportRdf(build_plan, entry_name);
+        err := err OR (start = NIL);
+        IF NOT err THEN BEGIN
+                hdr.cs := start^.rdf^.linker.hmz_code_seg;
+                hdr.ip := start^.rec.offset;
+        END;
+
+        { calculate bss seg's and SS }
+        IF NOT err THEN hdr.ss := FileSize(code) SHR 4;
+        hdr.min_extra_paragraphs := hdr.ss;
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                bss_size := 0;
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
+                        GET_BSS(s, bss_size);
+                END;
+                bss_size := AlignValue(bss_size, $10);
+                r^.linker.hmz_bss_seg := hdr.ss;
+                Inc(hdr.ss, bss_size SHR 4);
+                r := r^.next;
+        END;
+
+        { resolve segrelo }
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
+                        GET_RELOC_REC(s, rrec);
+                        IF rrec.rseg = r^.code_segnum THEN BEGIN
+                                fix := r^.linker.hmz_code_seg;
+                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                                fix := r^.linker.hmz_data_seg;
+                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                                fix := r^.linker.hmz_bss_seg;
+                        END ELSE BEGIN
+                                import := LookupImportByRSeg(r, rrec.rseg);
+                                IF import^.export^.rec.seg
+                                        = import^.export^.rdf^.code_segnum THEN
+                                        fix := import^.export^.rdf^.linker.hmz_code_seg
+                                ELSE IF import^.export^.rec.seg
+                                        = import^.export^.rdf^.data_segnum THEN
+                                        fix := import^.export^.rdf^.linker.hmz_data_seg
+                                ELSE IF import^.export^.rec.seg
+                                        = import^.export^.rdf^.bss_segnum THEN
+                                        fix := import^.export^.rdf^.linker.hmz_bss_seg;
+                        END;
+
+                        IF rrec.seg = r^.code_segnum THEN BEGIN
+                                SetMem(code, RWIDTH16
+                                        , (r^.linker.hmz_code_seg SHL 4) + rrec.offset
+                                        , fix);
+                                mzr.seg := r^.linker.hmz_code_seg;
+                        END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
+                                SetMem(code, RWIDTH16
+                                        , (r^.linker.hmz_data_seg SHL 4) + rrec.offset
+                                        , fix);
+                                mzr.seg := r^.linker.hmz_data_seg;
+                        END;
+                        mzr.ofs := rrec.offset;
+                        BlockWrite(o, mzr, SizeOf(MZ_RELOC));
+                        Inc(hdr.num_relocs);
+                END;
+                r := r^.next;
+        END;
+
+        { resolve relo }
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                        GET_RELOC_REC(s, rrec);
+                        selfr := (rrec.seg AND $40) <> 0;
+                        fix := 0;
+                        rrec.seg := rrec.seg AND $3F;
+                        IF rrec.rseg = r^.code_segnum THEN BEGIN
+                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                        END ELSE BEGIN
+                                import := LookupImportByRSeg(r, rrec.rseg);
+                                fix := import^.export^.rec.offset;
+                        END;
+
+                        IF rrec.seg = r^.code_segnum THEN BEGIN
+                                SetMem(code, RWIDTH16
+                                        , (r^.linker.hmz_code_seg SHL 4) + rrec.offset
+                                        , fix);
+                        END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
+                                SetMem(code, RWIDTH16
+                                        , (r^.linker.hmz_data_seg SHL 4) + rrec.offset
+                                        , fix);
+                        END;
+                END;
+                r := r^.next;
+        END;
+
+        IF NOT err THEN BEGIN
+                FilePosAlign(o, $10);
+                Seek(code, 0);
+                hdr.signature := MZ_SIGN;
+                hdr.header_paragraphs := FilePos(o) SHR 4;
+                BlockCopy(code, o, FileSize(code));
+                hdr.blocks_in_file := (FileSize(code) SHR 9) + 1;
+                hdr.bytes_in_last_block := (FileSize(code) AND $1FF);
+                hdr.reloc_table_offset := SizeOf(MZ_HEADER);
+                hdr.min_extra_paragraphs :=
+                        (hdr.ss - hdr.min_extra_paragraphs)
+                        + (stack_size SHR 4) + 1;
+                hdr.max_extra_paragraphs := hdr.min_extra_paragraphs;
+                hdr.sp := stack_size;
+                Seek(o, 0);
+                BlockWrite(o, hdr, SizeOf(MZ_HEADER));
+        END;
+        IF err THEN SetDeleteOnClose(o, TRUE);
+        Close(code);
+        Close(o);
+        LinkAndGenMZH := err;
+END;
+
+
+FUNCTION LinkAndGenMZS(VAR build_plan : IMAGE_BUILD_PLAN;
+        entry_name : RDFNAME;
+        outfname : STRING;
+        stack_size : LONGINT) : BOOLEAN;
+
+VAR     err      : BOOLEAN;
+        i, o     : BFIle;
+        hdr      : MZ_HEADER;
+        header_paragraphs : WORD;
+        code     : BFile;
+        data     : BFile;
+        stack_ss : WORD;
+        r        : PRDFMETA;
+        start    : PLINK_EXPORT;
+        export   : PLINK_EXPORT;
+        import   : PLINK_IMPORT;
+        bss_size : DWORD;
+        s        : STRING;
+        rrec     : RRELOC_REC;
+        mzr      : MZ_RELOC;
+        fix      : WORD;
+        p        : INTEGER;
+        find     : BOOLEAN;
+        selfr    : BOOLEAN;
+        smz_code_seg  : WORD;
+        smz_data_seg  : WORD;
+        smz_bss_seg   : WORD;
+BEGIN
+        err := FALSE;
+        Assign(o, outfname);
+        ReWrite(o);
+        err := NOT IsOpen(o);
+        start := NIL;
+        FillChar(hdr, SizeOf(MZ_HEADER), #0);
+        BlockWrite(o, hdr, SizeOf(MZ_HEADER));
+
+        ReWriteMemFile(code);
+        ReWriteMemFile(data);
+        err := err OR (NOT (IsOpen(code) AND IsOpen(data)));
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Assign(i, r^.filename);
+                Reset(i);
+
+                err := NOT IsOpen(i) ;
+                IF NOT err THEN BEGIN
+                        Seek(i, r^.file_code);
+                        r^.linker.smz_code_ofs := FilePos(code);
+                        BlockCopy(i, code, r^.code_size);
+                        FilePosAlign(code, 4);
+        
+                        Seek(i, r^.file_data);
+                        r^.linker.smz_data_ofs := FilePos(data);
+                        BlockCopy(i, data, r^.data_size);
+                        FilePosAlign(data, 4);
+        
+                        Close(i);
+                END;
+                r := r^.next;
+        END;
+
+        IF NOT err THEN BEGIN
+                FilePosAlign(code, $10);
+                FilePosAlign(data, $10);
+                smz_code_seg  := 0;
+                smz_data_seg  := FileSize(code) SHR 4;
+                smz_bss_seg   := smz_data_seg + FileSize(data) SHR 4;
+        END;
+        IF NOT err THEN start := FindExportRdf(build_plan, entry_name);
+        err := err OR (start = NIL);
+        IF NOT err THEN BEGIN
+                hdr.cs := smz_code_seg;
+                hdr.ip := start^.rec.offset + start^.rdf^.linker.smz_code_ofs;
+        END;
+
+        { calculate bss seg's and SS }
+        IF NOT err THEN hdr.ss := smz_bss_seg;
+        bss_size := 0;
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                r^.linker.smz_bss_ofs := bss_size;
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
+                        GET_BSS(s, bss_size);
+                END;
+                bss_size := AlignValue(bss_size, 2);
+                r := r^.next;
+        END;
+        bss_size := AlignValue(bss_size, $10);
+        hdr.ss := smz_bss_seg + (bss_size SHR 4);
+
+        { resolve segrelo }
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
+                        GET_RELOC_REC(s, rrec);
+                        IF rrec.rseg = r^.code_segnum THEN BEGIN
+                                fix := smz_code_seg;
+                                Inc(rrec.offset, r^.linker.smz_code_ofs);
+                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                                fix := smz_data_seg;
+                                Inc(rrec.offset, r^.linker.smz_data_ofs);
+                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                                fix := smz_bss_seg;
+                                Inc(rrec.offset, r^.linker.smz_bss_ofs);
+                        END ELSE BEGIN
+                                import := LookupImportByRSeg(r, rrec.rseg);
+                                IF import^.export^.rec.seg
+                                        = import^.export^.rdf^.code_segnum THEN
+                                        fix := smz_code_seg
+                                ELSE IF import^.export^.rec.seg
+                                        = import^.export^.rdf^.data_segnum THEN
+                                        fix := smz_data_seg
+                                ELSE IF import^.export^.rec.seg
+                                        = import^.export^.rdf^.bss_segnum THEN
+                                        fix := smz_bss_seg;
+                        END;
+
+                        IF rrec.seg = r^.code_segnum THEN BEGIN
+                                SetMem(code, RWIDTH16
+                                        , rrec.offset
+                                        , fix);
+                                mzr.seg := smz_code_seg;
+                        END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
+                                SetMem(data, RWIDTH16
+                                        , rrec.offset
+                                        , fix);
+                                mzr.seg := smz_data_seg;
+                        END;
+                        mzr.ofs := rrec.offset;
+                        BlockWrite(o, mzr, SizeOf(MZ_RELOC));
+                        Inc(hdr.num_relocs);
+                END;
+                r := r^.next;
+        END;
+
+        { resolve relo }
+        r := build_plan.rdfs;
+        WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                Seek(build_plan.hdr, r^.bhdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                        GET_RELOC_REC(s, rrec);
+                        selfr := (rrec.seg AND $40) <> 0;
+                        fix := 0;
+                        rrec.seg := rrec.seg AND $3F;
+                        IF rrec.seg = r^.code_segnum THEN BEGIN
+                                Inc(rrec.offset, r^.linker.smz_code_ofs);
+                                IF selfr THEN Dec(fix, r^.linker.smz_code_ofs);
+                        END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
+                                Inc(rrec.offset, r^.linker.smz_data_ofs);
+                                IF selfr THEN Dec(fix, r^.linker.smz_data_ofs);
+                        END;
+                        IF rrec.rseg = r^.code_segnum THEN BEGIN
+                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                        END ELSE BEGIN
+                                import := LookupImportByRSeg(r, rrec.rseg);
+                                Inc(fix, import^.export^.rec.offset);
+                                IF import^.export^.rec.seg = import^.export^.rdf^.code_segnum THEN BEGIN
+                                        Inc(fix, import^.export^.rdf^.linker.smz_code_ofs);
+                                END ELSE IF import^.export^.rec.seg = import^.export^.rdf^.data_segnum THEN BEGIN
+                                        Inc(fix, import^.export^.rdf^.linker.smz_data_ofs);
+                                END ELSE IF import^.export^.rec.seg = import^.export^.rdf^.bss_segnum THEN BEGIN
+                                        Inc(fix, import^.export^.rdf^.linker.smz_bss_ofs);
+                                END;
+                        END;
+
+                        IF rrec.seg = r^.code_segnum THEN BEGIN
+                                IncMem(code, rrec.width
+                                        , rrec.offset
+                                        , fix);
+                        END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
+                                IncMem(data, rrec.width
+                                        , rrec.offset
+                                        , fix);
+                        END;
+                END;
+                r := r^.next;
+        END;
+
+        IF NOT err THEN BEGIN
+                FilePosAlign(o, $10);
+                hdr.signature := MZ_SIGN;
+                hdr.header_paragraphs := FilePos(o) SHR 4;
+                Seek(code, 0);
+                BlockCopy(code, o, FileSize(code));
+                Seek(data, 0);
+                BlockCopy(data, o, FileSize(data));
+                hdr.blocks_in_file := ((FileSize(code) + FileSize(data)) SHR 9) + 1;
+                hdr.bytes_in_last_block := ((FileSize(code) + FileSize(data)) AND $1FF);
+                hdr.reloc_table_offset := SizeOf(MZ_HEADER);
+                hdr.min_extra_paragraphs :=
+                        (hdr.ss - smz_bss_seg)
+                        + (stack_size SHR 4) + 1;
+                hdr.max_extra_paragraphs := hdr.min_extra_paragraphs;
+                hdr.sp := stack_size;
+                Seek(o, 0);
+                BlockWrite(o, hdr, SizeOf(MZ_HEADER));
+        END;
+        IF err THEN SetDeleteOnClose(o, TRUE);
+        Close(code);
+        Close(o);
+        LinkAndGenMZS := err;
+END;
+
+PROCEDURE FreeOutOfPlan(VAR build_plan : IMAGE_BUILD_PLAN);
+VAR     r        : PRDFMETA;
+        export   : PEXPORTS;
+        import   : PIMPORTS;
+BEGIN
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                IF NOT r^.linker.linked THEN BEGIN
+                        WHILE r^.linker.export <> NIL DO BEGIN
+                                export := r^.linker.export;
+                                r^.linker.export := r^.linker.export^.next;
+                                FreeMem(export, SizeOf(TEXPORTS));
+                        END;
+                        WHILE r^.linker.import <> NIL DO BEGIN
+                                import := r^.linker.import;
+                                r^.linker.import := r^.linker.import^.next;
+                                FreeMem(import, SizeOf(TIMPORTS));
+                        END;
+                END;
+                r := r^.next;
+        END;
+END;
+
+PROCEDURE DestroyPlan(VAR build_plan : IMAGE_BUILD_PLAN);
+VAR     r        : PRDFMETA;
+        export   : PEXPORTS;
+        import   : PIMPORTS;
+BEGIN
+        WHILE build_plan.rdfs <> NIL DO BEGIN
+                r := build_plan.rdfs;
+                build_plan.rdfs := build_plan.rdfs^.next;
+                WHILE r^.linker.export <> NIL DO BEGIN
+                        export := r^.linker.export;
+                        r^.linker.export := r^.linker.export^.next;
+                        FreeMem(export, SizeOf(TEXPORTS));
+                END;
+                WHILE r^.linker.import <> NIL DO BEGIN
+                        import := r^.linker.import;
+                        r^.linker.import := r^.linker.import^.next;
+                        FreeMem(import, SizeOf(TIMPORTS));
+                END;
+                FreeMem(r, SizeOf(TRDFMETA));
+        END;
+        Close(build_plan.hdr);
+END;
+
+CONST
+ARG_OUTPUT = 'o';
+ARG_ENTRY  = 'entry';
+ARG_ORG    = 'org';
+ARG_BSS    = 'bss';
+ARG_RDF    = 'rdf';
+ARG_NOEMEM = 'noextmem';
+ARG_COM    = 'com';
+ARG_MZH    = 'mzh';
+ARG_MZS    = 'mzs';
+ARG_DOSPE  = 'dospe';
+ARG_WINPE  = 'winpe';
+ARG_STACK  = 's';
+LIB_ENV    = 'RLIB';
+
+OPTIONS_DESC : ARRAY[0..10] OF TOPT = (
+(name: ARG_OUTPUT; otype: OPTSTR;  help: 'Set output file name.'),
+(name: ARG_ORG;    otype: OPTSTR;  help: 'Set code start offset for COM output.'; default:'0x0100'),
+(name: ARG_ENTRY;  otype: OPTSTR;  help: 'Set entry-point name.'; default:'start'),
+(name: ARG_STACK;  otype: OPTSTR;  help: 'Set stack size in KB.'; default:'8'),
+(name: ARG_BSS;    otype: OPTBOOL; help: 'Reserve BSS-memory for COM/RDF output.'),
+(name: ARG_NOEMEM; otype: OPTBOOL; help: 'Use temporary files instead EMS/XMS memory.'),
+(name: ARG_RDF;    otype: OPTCMD;  help: 'Link RDF file. Merge all segments into one code segment.'),
+(name: ARG_COM;    otype: OPTCMD;  help: 'Link COM file, tiny memory model.'),
+(name: ARG_MZS;    otype: OPTCMD;  help: 'Link MZ file, small memory model.'),
+(name: ARG_MZH;    otype: OPTCMD;  help: 'Link MZ file, huge memory model.'),
+(name: ARG_DOSPE;  otype: OPTCMD;  help: 'Link DOS-PE file (PE without imports).') {,
+(name: ARG_WINPE;  otype: OPTCMD;  help: 'Link Win32-PE file.')}
+);
+
+VAR     myArgs        : TARGSTATE;
+        bin_org       : LONGINT;
+        str_org       : STRING;
+        bin_ss        : LONGINT;
+        str_ss        : STRING;
+        cmd           : STRING;
+        outfname      : STRING;
+        entry_name    : RDFNAME;
+        build_plan    : IMAGE_BUILD_PLAN;
+        i, arg_count  : INTEGER;
+        err           : BOOLEAN;
+        strict_import : BOOLEAN;
+        rlib          : STRING;
+BEGIN
+        ArgsParse(myArgs, OPTIONS_DESC);
+
+        outfname := GetOptStr(myArgs, ARG_OUTPUT);
+        entry_name := GetOptStr(myArgs, ARG_ENTRY);
+        str_org := GetOptStr(myArgs, ARG_ORG);
+        str_ss := GetOptStr(myArgs, ARG_STACK);
+
+        IF ArgsCount(myArgs) = 0 THEN SetArgsErr(myArgs, 'No input files.');
+        IF Length(outfname) = 0 THEN SetArgsErr(myArgs, 'No output file.');
+        IF Length(entry_name) = 0 THEN SetArgsErr(myArgs, 'No entry point.');
+        IF NOT StrAsLong(str_org, bin_org) THEN SetArgsErr(myArgs, 'Bad code offset.');
+        IF NOT StrAsLong(str_ss, bin_ss) THEN SetArgsErr(myArgs, 'Bad stack size.');
+
+        WriteArgsErrors(myArgs);
+        IF ArgsError(myArgs) THEN Halt(1);
+
+        rlib := getEnv(LIB_ENV);
+        {$IFDEF DEBUG}
+        System.Writeln('RLIB=', rlib);
+        {$ENDIF}
+        IF GetOptBool(myArgs, ARG_NOEMEM) THEN SetDefaultCacheSize(0);
+        SetUseTempFiles(TRUE);
+
+        cmd := GetCmd(myArgs);
+        bin_ss := bin_ss * 1024;
+
+        FillChar(build_plan, SizeOf(IMAGE_BUILD_PLAN), #0);
+        ReWriteMemFile(build_plan.hdr);
+        err := FALSE;
+        arg_count := ArgsCount(myArgs);
+        i := 1;
+        WHILE (i <= arg_count) AND (NOT err) DO BEGIN
+                build_plan.rdfs :=
+                        GetRlibMetaInfo(rlib, build_plan.rdfs
+                                , GetArgsStr(myArgs, i)
+                                , build_plan.hdr, err);
+                Inc(i);
+        END;
+        IF cmd = ARG_DOSPE THEN strict_import := FALSE ELSE strict_import := TRUE;
+        IF NOT err THEN err := CreateBuildPlan(build_plan, entry_name, strict_import);
+        {$IFDEF DEBUG}
+        Assign(build_plan.linked_out, 'int.rdf');
+        ReWrite(build_plan.linked_out);
+        {$ENDIF}
+        {$IFNDEF DEBUG}
+        ReWriteMemFile(build_plan.linked_out);
+        {$ENDIF}
+        FreeOutOfPlan(build_plan);
+        IF (NOT err) AND (cmd = ARG_MZH) THEN BEGIN
+                err := LinkAndGenMZH(build_plan, entry_name, outfname, bin_ss);
+                DestroyPlan(build_plan);
+        END ELSE IF (NOT err) AND (cmd = ARG_COM) THEN BEGIN
+                err := LinkSmallModel(build_plan);
+                DestroyPlan(build_plan);
+                IF NOT err THEN err := LinkAndGenCOM(build_plan.linked_out
+                        , bin_org
+                        , entry_name
+                        , outfname
+                        , GetOptBool(myArgs, ARG_BSS));
+        END ELSE IF (NOT err) AND (cmd = ARG_MZS) THEN BEGIN
+                err := LinkAndGenMZS(build_plan
+                        , entry_name
+                        , outfname
+                        , bin_ss);
+                DestroyPlan(build_plan);
+        END ELSE IF (NOT err) AND (cmd = ARG_RDF) THEN BEGIN
+                err := LinkSmallModel(build_plan);
+                DestroyPlan(build_plan);
+                IF NOT err THEN err := LinkAndGenRDF(build_plan.linked_out
+                        , outfname
+                        , GetOptBool(myArgs, ARG_BSS));
+        END ELSE IF (NOT err) AND (cmd = ARG_DOSPE) THEN BEGIN
+                err := LinkSmallModel(build_plan);
+                DestroyPlan(build_plan);
+                IF NOT err THEN err := LinkAndGenDosPE(build_plan.linked_out
+                        , entry_name
+                        , outfname
+                        , bin_ss);
+        END ELSE DestroyPlan(build_plan);
+        Close(build_plan.linked_out);
+        IF err THEN Halt(1);
 END.

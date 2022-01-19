@@ -23,28 +23,11 @@ SOFTWARE.
 https://github.com/DosWorld/rtools }
 {$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}
 {$M 64000, 128000,128000}
-USES utils, system2, rdfconst;
-
-CONST
-
-RLIB_SIGN1  : STRING[6] = '.sig'+#0;
-RLIB_SIGN2  : STRING[6] = 'RDLIB2';
-
-PROCEDURE Help;
-BEGIN
-        System.WriteLn('usage: RLIB cmd lib.rdl [file.rdf modulename]');
-        System.WriteLn;
-        System.WriteLn('where CMD is:');
-        System.WriteLn('/C  - Create empty lib.rdl (or overwrite)');
-        System.WriteLn('/A  - Add to lib.rdl module modulename from file file.rdf');
-        System.WriteLn('/L  - Show module names from lib.rdl');
-        System.WriteLn('/H  - Show this help');
-        Halt(1);
-END;
+USES system2, args, RdfFmt;
 
 PROCEDURE err_exit;
 BEGIN
-        System.WriteLn('  use /H for help');
+        System.Write('  use /H for help');
         Halt(1);
 END;
 
@@ -78,13 +61,10 @@ VAR     f : BFILE;
 BEGIN
         Assign(f, libname);
         ReWrite(f);
-        IF f.ioResult <> 0 THEN file_err(libname, i);
-        BlockWrite(f, RLIB_SIGN1[1], Length(RLIB_SIGN1));
-        BlockWrite(f, RLIB_SIGN2[1], Length(RLIB_SIGN2));
-        WriteDWord(f, SizeOf(DWORD));
-        WriteDWord(f, 0);
-        Truncate(f);
-        Close(f);
+        IF IsOpen(f) THEN BEGIN
+                RDL_CREATE(f);
+                Close(f);
+        END;
 END;
 
 
@@ -94,25 +74,21 @@ BEGIN
         IF Length(modname) > 63 THEN modname[0] := #63;
         Assign(f, libname);
         Reset(f);
-        IF f.ioResult <> 0 THEN file_err(libname, f.ioResult);
+        IF GET_FILE_TYPE(f) <> FILE_RDL THEN Close(f);
         Assign(o, filename);
         Reset(o);
-        IF NOT IsOpen(o) THEN BEGIN
-                Close(f);
-                file_err(filename, o.ioResult);
+        IF GET_FILE_TYPE(o) <> FILE_RDF THEN Close(o);
+        IF IsOpen(f) AND IsOpen(o) THEN BEGIN
+                RDL_APPEND_MODULE(f, modname);
+                Seek(o, 0);
+                BlockCopy(o, f, FileSize(o));
         END;
-        Seek(f, FileSize(f));
-        modname := modname + #0;
-        Write(f, modname);
-        BlockCopy(o, f, FileSize(o));
-        Close(o);
-        Close(f);
+        IF NOT IsOpen(f) THEN file_err(libname, f.ioResult) ELSE Close(f);
+        IF NOT IsOpen(o) THEN file_err(libname, o.ioResult) ELSE Close(o);
 END;
 
 PROCEDURE rlib_list(VAR libname : STRING);
 VAR     f        : BFILE;
-        i        : INTEGER;
-        p        : DWORD;
         modsize  : DWORD;
         modstart : DWORD;
         modname  : STRING;
@@ -120,61 +96,57 @@ VAR     f        : BFILE;
 BEGIN
         Assign(f, libname);
         Reset(f);
-        IF f.ioResult <> 0 THEN file_err(libname, f.ioResult);
+        IF NOT IsOpen(f) THEN file_err(libname, f.ioResult);
         System.WriteLn('Offset' : 8, ' ', 'Size' : 8, ' Module');
-        WHILE NOT EOF(f) DO BEGIN
-                p := FilePos(f);
-                BlockRead(f, modname[1], 255);
-                i := 1;
-                WHILE i < 255 DO BEGIN
-                        IF modname[i] = #0 THEN BEGIN
-                                modname[0] := CHR(i - 1);
-                                BREAK;
-                        END;
-                        INC(i);
-                        INC(p);
-                END;
-                modstart := p + 1;
-                Seek(f, modstart);
-                BlockRead(f, s[1], 6);
-                s[0] := #6;
-                IF modname[1] <> '.' THEN BEGIN
-                        IF s <> RDOFF2_SIGN THEN BEGIN
-                                System.WriteLn('Module ', modname, ' has invalid format ', s);
-                                BREAK;
-                        END;
-                END;
+        WHILE RDL_NEXT_MODULE(f, modname) DO BEGIN
+                modstart := FilePos(f);
+                Seek(f, modstart + Length(RDOFF2_SIGN));
                 modsize := ReadDword(f);
-                IF modname[1] <> '.' THEN BEGIN
-                        System.WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
-                END;
+                System.WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
                 Seek(f, FilePos(f) + modsize);
         END;
         Close(f);
 END;
 
-VAR     cmd      : STRING;
+CONST
+ARG_CMD_CREATE = 'c';
+ARG_CMD_ADD    = 'a';
+ARG_CMD_LIST   = 'l';
+
+OPTIONS_DESC : ARRAY[0..2] OF TOPT = (
+(name: ARG_CMD_CREATE; otype: OPTCMD;  help: 'Create empty library arg0 (or overwrite it)'),
+(name: ARG_CMD_ADD;    otype: OPTCMD;  help: 'Add to library arg0 module from file arg1 with name arg2'),
+(name: ARG_CMD_LIST;   otype: OPTCMD;  help: 'Show module names from library arg0')
+);
+
+VAR     myArgs   : TARGSTATE;
+        cmd      : STRING;
         libname  : STRING;
         filename : STRING;
         modname  : STRING;
         pcount   : INTEGER;
-        cmdc     : CHAR;
-
 BEGIN
-        cmd := '';
-        libname := '';
-        filename := '';
-        modname := '';
-        pcount := ParamCount;
-        IF pcount > 0 THEN cmd := ParamStr(1);
-        IF pcount > 1 THEN libname := ParamStr(2);
-        IF pcount > 2 THEN filename := ParamStr(3);
-        IF pcount > 3 THEN modname := ParamStr(4);
-        cmdc := #0;
-        IF Length(cmd) > 1 THEN IF cmd[1] IN ['/', '-'] THEN cmdc := UPCASE(cmd[2]);
-        IF (cmdc = 'C') AND (pcount = 2) THEN rlib_create(libname)
-        ELSE IF (cmdc = 'A') AND (pcount = 4) THEN rlib_add(libname, filename, modname)
-        ELSE IF (cmdc = 'L') AND (pcount = 2) THEN rlib_list(libname)
-        ELSE IF cmdc IN ['H', '?'] THEN Help
-        ELSE err_exit;
+        ArgsParse(myArgs, OPTIONS_DESC);
+
+        libname := GetArgsStr(myArgs, 1);
+        filename := GetArgsStr(myArgs, 2);
+        modname := GetArgsStr(myArgs, 3);
+
+        cmd := GetCmd(myArgs);
+        pcount := ArgsCount(myArgs);
+
+        IF (cmd = ARG_CMD_CREATE) AND (pcount <> 1) THEN
+                SetArgsErr(myArgs, 'Required parameters: library.rdl');
+        IF (cmd = ARG_CMD_ADD) AND (pcount <> 3) THEN
+                SetArgsErr(myArgs, 'Required parameters: library.rdl file.rdf module_name');
+        IF (cmd = ARG_CMD_LIST) AND (pcount <> 1) THEN
+                SetArgsErr(myArgs, 'Required parameters: library.rdl');
+
+        WriteArgsErrors(myArgs);
+        IF ArgsError(myArgs) THEN Halt(1);
+
+
+        IF cmd = ARG_CMD_CREATE THEN rlib_create(libname)
+        ELSE IF cmd = ARG_CMD_ADD THEN rlib_add(libname, filename, modname)
+        ELSE IF cmd = ARG_CMD_LIST THEN rlib_list(libname)
 END.
