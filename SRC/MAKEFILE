@@ -1,20 +1,19 @@
-all: rexe.exe rdump.exe rlib.exe rlink.exe
+all: RLINK.EXE RLIB.EXE RDFDUMP.EXE
 
-rexe.exe: rexe.pas utils.pas
-	tpc /m rexe.pas
+RLINK.EXE: RLINK.PAS RDFFMT.PAS RLINKOUT.PAS
+	TPC /M RLINK.PAS
 
-rlink.exe: rlink.pas utils.pas rldutil.pas
-	tpc /m rlink.pas
+RDFDUMP.EXE: RDFDUMP.PAS RDFFMT.PAS
+	TPC /M RDFDUMP.PAS
 
-rlib.exe: rlib.pas utils.pas
-	tpc /m rlib.pas
-
-rdump.exe: rdump.pas utils.pas
-	tpc /m rdump.pas
+RLIB.EXE: RLIB.PAS RDFFMT.PAS
+	TPC /M RLIB.PAS
 
 install: all
-	copy /Y *.exe ..\BIN\
+	COPY RLINK.EXE ..\BIN\
+	COPY RLIB.EXE ..\BIN\
+	COPY RDFDUMP.EXE ..\BIN\
 
 clean:
-	del *.exe
-	del *.tpu
+	DEL *.TPU
+	DEL *.EXE
