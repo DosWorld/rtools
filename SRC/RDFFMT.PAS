@@ -389,7 +389,6 @@ BEGIN
                 Seek(f, p + ORD(modname[0]) + 1);
                 IF modname[0] > #0 THEN
                         IF modname[1] <> '.' THEN BEGIN r := TRUE; BREAK; END;
-{                Seek(f, FilePos(f) + Length(RDOFF2_SIGN));}
                 p := ReadDWord(f);
                 Seek(f, FilePos(f) + p);
         END;
