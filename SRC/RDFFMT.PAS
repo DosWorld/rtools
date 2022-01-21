@@ -360,7 +360,7 @@ END;
 
 FUNCTION GET_FILE_TYPE(VAR f : BFILE) : RDF_FILE_TYPE;
 VAR     r     : RDF_FILE_TYPE;
-        sign1 : STRING[12];
+        sign1 : STRING[6];
 BEGIN
         r := FILE_UNKNOWN;
         Seek(f, 0);
@@ -368,12 +368,9 @@ BEGIN
         sign1[0] := #6;
         IF sign1 = RDOFF2_SIGN THEN BEGIN
                 r := FILE_RDF;
-                Seek(f, 0);
-        END ELSE BEGIN
-                IF sign1 = RLIB_SIGN THEN BEGIN
-                        Seek(f, 6);
-                        r := FILE_RDL;
-                END;
+        END ELSE IF sign1 = RLIB_SIGN THEN BEGIN
+                Seek(f, 6);
+                r := FILE_RDL;
         END;
         IF r IN [FILE_UNKNOWN,FILE_RDF] THEN Seek(f, 0);
         GET_FILE_TYPE := r;
@@ -390,8 +387,9 @@ BEGIN
                 modname[0] := #0;
                 WHILE (modname[0] < #255) AND (modname[ORD(modname[0]) + 1] <> #0) DO Inc(modname[0]);
                 Seek(f, p + ORD(modname[0]) + 1);
-                IF modname[0] > #0 THEN IF modname[1] <> '.' THEN BEGIN r := TRUE; BREAK; END;
-                Seek(f, FilePos(f) + Length(RDOFF2_SIGN));
+                IF modname[0] > #0 THEN
+                        IF modname[1] <> '.' THEN BEGIN r := TRUE; BREAK; END;
+{                Seek(f, FilePos(f) + Length(RDOFF2_SIGN));}
                 p := ReadDWord(f);
                 Seek(f, FilePos(f) + p);
         END;

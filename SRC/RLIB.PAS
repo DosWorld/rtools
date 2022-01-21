@@ -95,14 +95,19 @@ VAR     f        : BFILE;
 BEGIN
         Assign(f, libname);
         Reset(f);
-        IF NOT IsOpen(f) THEN file_err(libname, f.ioResult);
-        System.WriteLn('Offset' : 8, ' ', 'Size' : 8, ' Module');
-        WHILE RDL_NEXT_MODULE(f, modname) DO BEGIN
-                modstart := FilePos(f);
-                Seek(f, modstart + Length(RDOFF2_SIGN));
-                modsize := ReadDword(f);
-                System.WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
-                Seek(f, FilePos(f) + modsize);
+        IF NOT IsOpen(f) THEN BEGIN
+                file_err(libname, f.ioResult);
+        END ELSE IF GET_FILE_TYPE(f) = FILE_RDL THEN BEGIN
+                System.WriteLn('Offset' : 8, ' ', 'Size' : 8, ' Module');
+                WHILE RDL_NEXT_MODULE(f, modname) DO BEGIN
+                        modstart := FilePos(f);
+                        Seek(f, FilePos(f) + Length(RDOFF2_SIGN));
+                        modsize := ReadDword(f);
+                        System.WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
+                        Seek(f, FilePos(f) + modsize);
+                END;
+        END ELSE BEGIN
+                System.writeln(libname, ' is not rdl');
         END;
         Close(f);
 END;
