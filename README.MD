@@ -29,7 +29,7 @@ Nasm works different with this files. So, I strongly advise to use
 rlink output formats:
 * com - simple MS-DOS .com file
 * mzs - MS-DOS exe, small memory model (CS = code, DS = data,bss,stack)
-* mzh - MS-DOS exe, huge memory model (each rdf have own CS, DS and BSS segment)
+* mzl - MS-DOS exe, large memory model (each rdf have own CS, DS and BSS segment)
 * dospe - PE32 with linked HX-DOS Extender loader (stub).
 * rdf - Linked rdf into one segment (like a .com, but with zero offset and name). Could be used as DLL.
 

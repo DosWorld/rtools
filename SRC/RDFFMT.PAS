@@ -44,7 +44,7 @@ RREC_SEGRELO   = #6;
 RREC_FARIMPORT = #7;
 RREC_MODNAME   = #8;
 
-RDOFF2_SIGN  : STRING[12] = 'RDOFF2';
+RDOFF2_SIGN  : STRING[6] = 'RDOFF2';
 RLIB_SIGN    : STRING[6] = 'RDLIB2';
 RLIB_MODNAME : STRING[12] = '.sig'+#0;
 
@@ -366,11 +366,12 @@ BEGIN
         Seek(f, 0);
         BlockRead(f, sign1[1], 6);
         sign1[0] := #6;
-        IF sign1 = RDOFF2_SIGN THEN r := FILE_RDF
-        ELSE BEGIN
-                sign1[0] := #5;
+        IF sign1 = RDOFF2_SIGN THEN BEGIN
+                r := FILE_RDF;
+                Seek(f, 0);
+        END ELSE BEGIN
                 IF sign1 = RLIB_SIGN THEN BEGIN
-                        Seek(f, 5);
+                        Seek(f, 6);
                         r := FILE_RDL;
                 END;
         END;

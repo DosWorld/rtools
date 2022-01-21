@@ -24,7 +24,7 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 USES dos, system2, args, StrBin, rdffmt, rlinkout;
 
-{$DEFINE DEBUG}
+{$DEFINE DEBUG1}
 
 FUNCTION basename(s : STRING) : STRING;
 VAR     i : INTEGER;
@@ -492,9 +492,9 @@ BEGIN
         LinkSmallModel := err;
 END;
 
-FUNCTION LinkAndGenMZH(VAR build_plan : IMAGE_BUILD_PLAN;
+FUNCTION LinkAndGenMZL(VAR build_plan : IMAGE_BUILD_PLAN;
         entry_name : RDFNAME;
-        outfname : STRING;
+        outfname   : STRING;
         stack_size : LONGINT) : BOOLEAN;
 
 VAR     err      : BOOLEAN;
@@ -663,7 +663,7 @@ BEGIN
         IF err THEN SetDeleteOnClose(o, TRUE);
         Close(code);
         Close(o);
-        LinkAndGenMZH := err;
+        LinkAndGenMZL := err;
 END;
 
 
@@ -927,7 +927,7 @@ ARG_BSS    = 'bss';
 ARG_RDF    = 'rdf';
 ARG_NOEMEM = 'noextmem';
 ARG_COM    = 'com';
-ARG_MZH    = 'mzh';
+ARG_MZL    = 'mzl';
 ARG_MZS    = 'mzs';
 ARG_DOSPE  = 'dospe';
 ARG_WINPE  = 'winpe';
@@ -944,7 +944,7 @@ OPTIONS_DESC : ARRAY[0..10] OF TOPT = (
 (name: ARG_RDF;    otype: OPTCMD;  help: 'Link RDF file. Merge all segments into one code segment.'),
 (name: ARG_COM;    otype: OPTCMD;  help: 'Link COM file, tiny memory model.'),
 (name: ARG_MZS;    otype: OPTCMD;  help: 'Link MZ file, small memory model.'),
-(name: ARG_MZH;    otype: OPTCMD;  help: 'Link MZ file, huge memory model.'),
+(name: ARG_MZL;    otype: OPTCMD;  help: 'Link MZ file, large memory model.'),
 (name: ARG_DOSPE;  otype: OPTCMD;  help: 'Link DOS-PE file (PE without imports).') {,
 (name: ARG_WINPE;  otype: OPTCMD;  help: 'Link Win32-PE file.')}
 );
@@ -1011,8 +1011,8 @@ BEGIN
         ReWriteMemFile(build_plan.linked_out);
         {$ENDIF}
         FreeOutOfPlan(build_plan);
-        IF (NOT err) AND (cmd = ARG_MZH) THEN BEGIN
-                err := LinkAndGenMZH(build_plan, entry_name, outfname, bin_ss);
+        IF (NOT err) AND (cmd = ARG_MZL) THEN BEGIN
+                err := LinkAndGenMZL(build_plan, entry_name, outfname, bin_ss);
                 DestroyPlan(build_plan);
         END ELSE IF (NOT err) AND (cmd = ARG_COM) THEN BEGIN
                 err := LinkSmallModel(build_plan);

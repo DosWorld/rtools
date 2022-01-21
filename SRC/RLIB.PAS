@@ -25,12 +25,6 @@ https://github.com/DosWorld/rtools }
 {$M 64000, 128000,128000}
 USES system2, args, RdfFmt;
 
-PROCEDURE err_exit;
-BEGIN
-        System.Write('  use /H for help');
-        Halt(1);
-END;
-
 PROCEDURE file_err(VAR fname : STRING; i : INTEGER);
 VAR     msg : STRING;
 BEGIN
@@ -52,7 +46,6 @@ BEGIN
         ELSE msg := 'Error';
         END;
         WriteLnErr(msg + ':' + fname);
-        err_exit;
 END;
 
 PROCEDURE rlib_create(VAR libname : STRING);
@@ -74,17 +67,23 @@ BEGIN
         IF Length(modname) > 63 THEN modname[0] := #63;
         Assign(f, libname);
         Reset(f);
-        IF GET_FILE_TYPE(f) <> FILE_RDL THEN Close(f);
+        IF GET_FILE_TYPE(f) <> FILE_RDL THEN BEGIN
+                System.writeln(libname, ' is not rdl');
+                Close(f);
+        END;
         Assign(o, filename);
         Reset(o);
-        IF GET_FILE_TYPE(o) <> FILE_RDF THEN Close(o);
+        IF GET_FILE_TYPE(o) <> FILE_RDF THEN BEGIN
+                System.writeln(filename, ' is not rdf');
+                Close(o);
+        END;
         IF IsOpen(f) AND IsOpen(o) THEN BEGIN
                 RDL_APPEND_MODULE(f, modname);
                 Seek(o, 0);
                 BlockCopy(o, f, FileSize(o));
         END;
-        IF NOT IsOpen(f) THEN file_err(libname, f.ioResult) ELSE Close(f);
-        IF NOT IsOpen(o) THEN file_err(libname, o.ioResult) ELSE Close(o);
+        IF IsOpen(f) THEN Close(f);
+        IF IsOpen(o) THEN Close(o);
 END;
 
 PROCEDURE rlib_list(VAR libname : STRING);
@@ -145,8 +144,7 @@ BEGIN
         WriteArgsErrors(myArgs);
         IF ArgsError(myArgs) THEN Halt(1);
 
-
         IF cmd = ARG_CMD_CREATE THEN rlib_create(libname)
         ELSE IF cmd = ARG_CMD_ADD THEN rlib_add(libname, filename, modname)
-        ELSE IF cmd = ARG_CMD_LIST THEN rlib_list(libname)
+        ELSE IF cmd = ARG_CMD_LIST THEN rlib_list(libname);
 END.

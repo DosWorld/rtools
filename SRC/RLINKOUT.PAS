@@ -1,7 +1,7 @@
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlinkout;
 
-{$DEFINE DEBUG}
+{$DEFINE DEBUG1}
 
 INTERFACE
 
