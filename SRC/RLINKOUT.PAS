@@ -288,7 +288,7 @@ BEGIN
                 hdrsize := ReadDWord(src);
                 IF IsOpen(dst_headers) THEN BlockCopy(src, dst_headers, hdrsize)
         END ELSE BEGIN
-System.writeln('WRONG FILE TYPE');
+                System.writeln('WRONG FILE TYPE');
                 err := TRUE;
         END;
         WHILE READ_SEG_REC(src, rec) AND (NOT err) DO BEGIN
@@ -299,7 +299,6 @@ System.writeln('WRONG FILE TYPE');
                         BlockCopy(src, dst_data, rec.seglen);
                         data_segnum := rec.segnum;
                 END ELSE BEGIN
-System.writeln('segtype = ', rec.segtype);
                         err := TRUE;
                 END;
         END;
@@ -325,7 +324,6 @@ BEGIN
                         find := TRUE;
                 END;
         END;
-system.writeln('FindEntryPoint = ', find, ', name = ', name);
         FindEntryPoint := find;
 END;
 
@@ -568,15 +566,12 @@ BEGIN
         Assign(o, outfname);
         Rewrite(o);
         err := err OR (NOT IsOpen(o));
-system.writeln('4');
         IF NOT err THEN BEGIN
-system.writeln('5');
                 err := MergeCodeDataBss(input, o, reserv_bss);
         END;
 {$IFNDEF DEBUG}
         IF err THEN SetDeleteOnClose(o, TRUE);
 {$ENDIF}
-system.writeln('6');
         Close(o);
         LinkAndGenRDF := err;
 END;
