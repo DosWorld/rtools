@@ -134,6 +134,7 @@ END;
 
 FUNCTION GetRlibMetaInfo(VAR rlib : STRING; root : PRDFMETA; fname : STRING; VAR hdr : BFILE; VAR err : BOOLEAN):PRDFMETA;
 VAR     i        : BFILE;
+        nname    : STRING;
 BEGIN
         IF (fname[0] > #1) AND (fname[1] = '@') THEN BEGIN
                 delete(fname, 1, 1);
@@ -147,11 +148,11 @@ BEGIN
                 END;
                 Close(i);
         END ELSE BEGIN
-                fname := FindFileInRlib(rlib, fname);
-                IF Length(fname) = 0 THEN BEGIN
+                nname := FindFileInRlib(rlib, fname);
+                IF Length(nname) = 0 THEN BEGIN
                         System.Writeln('File ', fname, ' does not exists.');
                         err := TRUE;
-                END ELSE root := GetRdlMetaInfo(root, fname, hdr, err)
+                END ELSE root := GetRdlMetaInfo(root, nname, hdr, err)
         END;
         GetRlibMetaInfo := root;
 END;
@@ -631,11 +632,11 @@ BEGIN
                         END;
 
                         IF rrec.seg = r^.code_segnum THEN BEGIN
-                                SetMem(code, RWIDTH16
+                                IncMem(code, RWIDTH16
                                         , (r^.linker.hmz_code_seg SHL 4) + rrec.offset
                                         , fix);
                         END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
-                                SetMem(code, RWIDTH16
+                                IncMem(code, RWIDTH16
                                         , (r^.linker.hmz_data_seg SHL 4) + rrec.offset
                                         , fix);
                         END;

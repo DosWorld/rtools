@@ -644,8 +644,8 @@ BEGIN
         err := err OR DisableRecs(hdr, RREC_IMPORT);
         err := err OR DisableRecs(hdr, RREC_FARIMPORT);
         err := err OR DisableRelocsWidth(hdr, RWIDTH16);
-
         code_ofs := $100;
+        code_size := FileSize(code);
         bss_ofs := code_ofs + code_size;
 
         Seek(hdr, 0);
@@ -659,7 +659,7 @@ BEGIN
         END;
 
         Seek(hdr, 0);
-        WHILE RDF_LOOKUPREC(hdr, RREC_RELOC, c) AND (NOT err) DO BEGIN
+        WHILE RDF_NLOOKUPREC(hdr, FileSize(hdr), RREC_RELOC, c) AND (NOT err) DO BEGIN
                 GET_RELOC_REC(c, rec);
                 
                 self := (rec.seg AND $40) <> 0;
