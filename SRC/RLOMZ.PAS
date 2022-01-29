@@ -22,13 +22,13 @@ SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-UNIT rlmz;
+UNIT rlomz;
 
 {$DEFINE DEBUG1}
 
 INTERFACE
 
-USES system2, rdffmt, rlout;
+USES system2, rdffmt, rlo;
 
 FUNCTION LinkAndGenMZS(VAR build_plan : IMAGE_BUILD_PLAN;
         entry_name : RDFNAME;

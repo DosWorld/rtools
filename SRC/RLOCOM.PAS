@@ -22,13 +22,13 @@ SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-UNIT rlcom;
+UNIT rlocom;
 
 {$DEFINE DEBUG1}
 
 INTERFACE
 
-USES system2, rdffmt, rlout;
+USES system2, rdffmt, rlo;
 
 FUNCTION LinkAndGenCOM(VAR input : BFILE;
         code_ofs : DWORD;

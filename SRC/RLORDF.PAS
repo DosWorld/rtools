@@ -22,13 +22,13 @@ SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-UNIT rlrdf;
+UNIT rlordf;
 
 {$DEFINE DEBUG1}
 
 INTERFACE
 
-USES system2, rdffmt, rlout;
+USES system2, rdffmt, rlo;
 
 FUNCTION LinkAndGenRDF(VAR input : BFILE; outfname : STRING; reserv_bss : BOOLEAN) : BOOLEAN;
 

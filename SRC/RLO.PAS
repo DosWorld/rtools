@@ -22,7 +22,7 @@ SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-UNIT rlout;
+UNIT rlo;
 
 {$DEFINE DEBUG1}
 
