@@ -211,13 +211,25 @@ BEGIN
 END;
 
 FUNCTION get_word(VAR c : STRING; ofs : INTEGER) : WORD;
+VAR     r : WORD;
 BEGIN
-        get_word := ORD(c[ofs]) OR (ORD(c[ofs + 1]) SHL 8);
+        r := ORD(c[ofs + 1]);
+        r := r SHL 8;
+        r := r OR ORD(c[ofs]);
+        get_word := r;
 END;
 
 FUNCTION get_dword(VAR c : STRING; ofs : INTEGER) : DWORD;
+VAR     r : DWORD;
 BEGIN
-        get_dword := ORD(c[ofs]) OR (ORD(c[ofs + 1]) SHL 8) OR (ORD(c[ofs + 2]) SHL 16) OR (ORD(c[ofs + 3]) SHL 24);
+        r := ORD(c[ofs + 3]);
+        r := r SHL 8;
+        r := r OR ORD(c[ofs + 2]);
+        r := r SHL 8;
+        r := r OR ORD(c[ofs + 1]);
+        r := r SHL 8;
+        r := r OR ORD(c[ofs]);
+        get_dword := r;
 END;
 
 PROCEDURE set_word(VAR c : STRING; ofs : INTEGER; w : WORD);

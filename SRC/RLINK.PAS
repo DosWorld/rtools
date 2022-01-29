@@ -51,7 +51,7 @@ BEGIN
         FillChar(r^, SizeOf(TRDFMETA), #0);
         r^.filename := src.filename;
         r^.hdr_size := hdr_size;
-        r^.bhdr_ofs := FilePos(hdr);
+        r^.hdr_ofs := FilePos(hdr);
         r^.next := root;
         root := r;
         BlockCopy(src, hdr, hdr_size);
@@ -256,8 +256,8 @@ BEGIN
         { build export tables and lookup entry point }
         r := build_plan.rdfs;
         WHILE r <> NIL DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_GLOBAL, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_GLOBAL, s) DO BEGIN
                         GET_EXPORT_REC(s, grec);
                         IF r^.linker.export = NIL THEN BEGIN
                                 GetMem(export, SizeOf(TEXPORTS));
@@ -283,15 +283,15 @@ BEGIN
         { build import tables }
         r := build_plan.rdfs;
         WHILE (NOT err) AND (r <> NIL) DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         IF rrec.rseg <= r^.bss_segnum THEN CONTINUE;
                         IF FindImportInBuildPlan(r^.linker.import, '', rrec.rseg) THEN CONTINUE;
                         p := FilePos(build_plan.hdr);
                         find := FALSE;
-                        Seek(build_plan.hdr, r^.bhdr_ofs);
-                        WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_IMPORT, s) DO BEGIN
+                        Seek(build_plan.hdr, r^.hdr_ofs);
+                        WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_IMPORT, s) DO BEGIN
                                 GET_IMPORT_REC(s, irec);
                                 IF irec.seg = rrec.rseg THEN BEGIN
                                         find := TRUE;
@@ -373,7 +373,7 @@ BEGIN
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
                 Assign(i, r^.filename);
                 Reset(i);
-                err := NOT IsOpen(i) ;
+                err := NOT IsOpen(i);
                 IF err THEN BREAK;
 
                 r^.linker.smz_bss_ofs := bss_size;
@@ -392,8 +392,8 @@ BEGIN
                 FilePosAlign(data, 4);
 
                 Close(i);
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
                         GET_BSS(s, cbss_size);
                 END;
                 cbss_size := AlignValue(cbss_size, 4);
@@ -430,8 +430,8 @@ BEGIN
         { resolve relo }
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         selfr := (rrec.seg AND $40) <> 0;
                         fix := 0;
@@ -452,7 +452,7 @@ BEGIN
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
-                                Inc(fix, import^.export^.rec.offset);
+                                fix := import^.export^.rec.offset;
                                 IF import^.export^.rec.seg
                                         = code_segnum THEN BEGIN
                                         rrec.rseg := code_segnum;
@@ -560,9 +560,9 @@ BEGIN
         hdr.min_extra_paragraphs := hdr.ss;
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
+                Seek(build_plan.hdr, r^.hdr_ofs);
                 bss_size := 0;
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
                         GET_BSS(s, bss_size);
                 END;
                 bss_size := AlignValue(bss_size, $10);
@@ -574,8 +574,8 @@ BEGIN
         { resolve segrelo }
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
                                 fix := r^.linker.hmz_code_seg;
@@ -617,8 +617,8 @@ BEGIN
         { resolve relo }
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         selfr := (rrec.seg AND $40) <> 0;
                         fix := 0;
@@ -749,8 +749,8 @@ BEGIN
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
                 r^.linker.smz_bss_ofs := bss_size;
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_BSS, s) DO BEGIN
                         GET_BSS(s, bss_size);
                 END;
                 bss_size := AlignValue(bss_size, 2);
@@ -762,8 +762,8 @@ BEGIN
         { resolve segrelo }
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
                                 fix := smz_code_seg;
@@ -808,8 +808,8 @@ BEGIN
         { resolve relo }
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Seek(build_plan.hdr, r^.bhdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.bhdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
+                Seek(build_plan.hdr, r^.hdr_ofs);
+                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         selfr := (rrec.seg AND $40) <> 0;
                         fix := 0;

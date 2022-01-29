@@ -1,3 +1,26 @@
+{ MIT License
+
+Copyright (c) 2022 Viacheslav Komenda
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlinkout;
 
@@ -71,10 +94,10 @@ TRDFMETA = RECORD
         bss_segnum  : WORD;
         code_segnum : WORD;
 
-        hdr_size  : DWORD;
-        bhdr_ofs  : DWORD;
-        linker    : TLINKDATA;
-        next      : PRDFMETA;
+        hdr_size    : DWORD;
+        hdr_ofs     : DWORD;
+        linker      : TLINKDATA;
+        next        : PRDFMETA;
 END;
 
 IMAGE_BUILD_PLAN = RECORD
@@ -265,7 +288,13 @@ $F6, $4F, $80, $7D, $FF, $5C, $74, $C6, $C6, $05, $5C, $47, $EB, $C0, $93, $C3,
 $50, $41, $54, $48, $3D, $0D, $0A, $63, $61, $6E, $6E, $6F, $74, $20, $66, $69,
 $6E, $64, $20, $6C, $6F, $61, $64, $65, $72, $20, $44, $50, $4D, $49, $4C, $44,
 $33, $32, $2E, $45, $58, $45, $24, $00, $00, $00, $00, $00, $00, $00, $00, $00);
-
+{
+MZEXE_STUB : array[0..63] of byte = (
+$4D, $5A, $3C, $00, $01, $00, $00, $00, $02, $00, $94, $00, $94, $00, $F0, $FF,
+$40, $09, $00, $00, $00, $01, $F0, $FF, $40, $00, $00, $00, $00, $00, $00, $00,
+$FC, $31, $C0, $50, $BA, $0C, $01, $B4, $09, $CD, $21, $C3, $54, $68, $69, $73,
+$20, $69, $73, $20, $57, $69, $6E, $50, $45, $2E, $24, $00, $40, $00, $00, $00);
+}
 FUNCTION AlignValue(value : DWORD; align : DWORD) : DWORD;
 VAR     n : DWORD;
 BEGIN
@@ -757,12 +786,12 @@ BEGIN
                 WHILE t^.items <> NIL DO BEGIN
                         item := t^.items;
                         t^.items := t^.items^.next;
-                        BlockWrite(o, item^.reloc, item^.reloc_count SHL 2);
+                        BlockWrite(o, item^.reloc, item^.reloc_count SHL 1);
                         Inc(i, item^.reloc_count);
                         FreeMem(item, SizeOf(PE_RELOC_ITEM));
                 END;
-                IF (i AND 1) <> 0 THEN WriteWord(o, 0);
-                SetDWord(o, p, i);
+                IF (i AND 1) <> 0 THEN BEGIN Inc(i); WriteWord(o, 0); END;
+                SetDWord(o, p, 8 + (i shl 1));
                 Seek(o, FileSize(o));
                 FreeMem(t, SizeOf(PE_RELOC_TABLE));
         END;
@@ -846,7 +875,6 @@ BEGIN
                         GET_BSS(s, bss_size);
                 END;
         END;
-
         image_base := $400000;
 
         code_ofs := $1000;
@@ -903,8 +931,11 @@ BEGIN
         sectCode.vaddr := code_ofs;
         sectCode.vsize := AlignValue(code_size, SECT_ALIGN);
         sectCode.rawSize := code_size;
-{        sectCode.chars := IMAGE_SCN_CNT_CODE OR IMAGE_SCN_MEM_EXECUTE OR IMAGE_SCN_MEM_READ OR IMAGE_SCN_MEM_WRITE;}
-        sectCode.chars := $60000060;
+        sectCode.chars := IMAGE_SCN_MEM_EXECUTE
+                OR IMAGE_SCN_MEM_WRITE
+                OR IMAGE_SCN_MEM_READ
+                OR IMAGE_SCN_CNT_CODE
+                OR IMAGE_SCN_CNT_INITIALIZED_DATA;
         BlockWrite(o, sectCode, SizeOf(sectCode));
 
         FillChar(sectData, SizeOf(sectData), #0);
@@ -912,15 +943,20 @@ BEGIN
         sectData.vaddr := data_ofs;
         sectData.vsize := AlignValue(data_size, SECT_ALIGN);
         sectData.rawSize := data_size;
-{        sectData.chars := IMAGE_SCN_CNT_CODE OR IMAGE_SCN_MEM_EXECUTE OR IMAGE_SCN_MEM_READ OR IMAGE_SCN_MEM_WRITE;}
-        sectData.chars := $C0000040;
+        sectData.chars := IMAGE_SCN_MEM_READ
+                OR IMAGE_SCN_MEM_WRITE
+                OR IMAGE_SCN_MEM_EXECUTE
+                OR IMAGE_SCN_CNT_INITIALIZED_DATA;
         BlockWrite(o, sectData, SizeOf(sectData));
 
         FillChar(sectBss, SizeOf(sectBss), #0);
         SetPeSectName(sectBss, 'BSS');
         sectBss.vaddr := bss_ofs;
         sectBss.vsize := bss_size;
-        sectBss.chars := IMAGE_SCN_CNT_UNINITIALIZED_DATA OR IMAGE_SCN_MEM_READ OR IMAGE_SCN_MEM_WRITE;
+        sectBss.chars := IMAGE_SCN_CNT_UNINITIALIZED_DATA
+                OR IMAGE_SCN_MEM_READ
+                OR IMAGE_SCN_MEM_EXECUTE
+                OR IMAGE_SCN_MEM_WRITE;
         BlockWrite(o, sectBss, SizeOf(sectBss));
 
         FillChar(sectRelo, SizeOf(sectRelo), #0);
