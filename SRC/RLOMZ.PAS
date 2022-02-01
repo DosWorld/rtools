@@ -41,6 +41,8 @@ FUNCTION LinkAndGenMZL(VAR build_plan : IMAGE_BUILD_PLAN;
 
 IMPLEMENTATION
 
+USES exe;
+
 FUNCTION LinkAndGenMZL(VAR build_plan : IMAGE_BUILD_PLAN;
         entry_name : RDFNAME;
         outfname   : STRING;
@@ -48,7 +50,7 @@ FUNCTION LinkAndGenMZL(VAR build_plan : IMAGE_BUILD_PLAN;
 VAR     err      : BOOLEAN;
         i, o     : BFIle;
         hdr      : MZ_HEADER;
-        header_paragraphs : WORD;
+        header_par : WORD;
         code     : BFile;
         stack_ss : WORD;
         r        : PRDFMETA;
@@ -104,7 +106,7 @@ BEGIN
 
         { calculate bss seg's and SS }
         IF NOT err THEN hdr.ss := FileSize(code) SHR 4;
-        hdr.min_extra_paragraphs := hdr.ss;
+        hdr.min_ext_par := hdr.ss;
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
                 Seek(build_plan.hdr, r^.hdr_ofs);
@@ -156,7 +158,7 @@ BEGIN
                         END;
                         mzr.ofs := rrec.offset;
                         BlockWrite(o, mzr, SizeOf(MZ_RELOC));
-                        Inc(hdr.num_relocs);
+                        Inc(hdr.relocs_count);
                 END;
                 r := r^.next;
         END;
@@ -175,7 +177,7 @@ BEGIN
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
-                                fix := import^.export^.rec.offset;
+                                Inc(fix, import^.export^.rec.offset);
                         END;
 
                         IF rrec.seg = r^.code_segnum THEN BEGIN
@@ -194,16 +196,16 @@ BEGIN
         IF NOT err THEN BEGIN
                 FilePosAlign(o, $10);
                 Seek(code, 0);
-                hdr.signature := MZ_SIGN;
-                hdr.header_paragraphs := FilePos(o) SHR 4;
+                hdr.sign := MZ_SIGN;
+                hdr.header_par := FilePos(o) SHR 4;
                 BlockCopy(code, o, FileSize(code));
-                hdr.blocks_in_file := (FileSize(code) SHR 9) + 1;
-                hdr.bytes_in_last_block := (FileSize(code) AND $1FF);
-                hdr.reloc_table_offset := SizeOf(MZ_HEADER);
-                hdr.min_extra_paragraphs :=
-                        (hdr.ss - hdr.min_extra_paragraphs)
+                hdr.blk_count := (FileSize(code) SHR 9) + 1;
+                hdr.lblk_size := (FileSize(code) AND $1FF);
+                hdr.relocs_ofs := SizeOf(MZ_HEADER);
+                hdr.min_ext_par :=
+                        (hdr.ss - hdr.min_ext_par)
                         + (stack_size SHR 4) + 1;
-                hdr.max_extra_paragraphs := hdr.min_extra_paragraphs;
+                hdr.max_ext_par := hdr.min_ext_par;
                 hdr.sp := stack_size;
                 Seek(o, 0);
                 BlockWrite(o, hdr, SizeOf(MZ_HEADER));
@@ -221,7 +223,7 @@ FUNCTION LinkAndGenMZS(VAR build_plan : IMAGE_BUILD_PLAN;
 VAR     err      : BOOLEAN;
         i, o     : BFIle;
         hdr      : MZ_HEADER;
-        header_paragraphs : WORD;
+        header_par : WORD;
         code     : BFile;
         data     : BFile;
         stack_ss : WORD;
@@ -279,7 +281,7 @@ BEGIN
                 FilePosAlign(data, $10);
                 smz_code_seg  := 0;
                 smz_data_seg  := FileSize(code) SHR 4;
-                smz_bss_seg   := smz_data_seg + FileSize(data) SHR 4;
+                smz_bss_seg   := smz_data_seg;
         END;
         IF NOT err THEN start := FindExportRdf(build_plan, entry_name);
         err := err OR (start = NIL);
@@ -290,7 +292,7 @@ BEGIN
 
         { calculate bss seg's and SS }
         IF NOT err THEN hdr.ss := smz_bss_seg;
-        bss_size := 0;
+        bss_size := FileSize(data);
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
                 r^.linker.smz_bss_ofs := bss_size;
@@ -301,7 +303,7 @@ BEGIN
                 bss_size := AlignValue(bss_size, 2);
                 r := r^.next;
         END;
-        bss_size := AlignValue(bss_size, $10);
+        bss_size := AlignValue(bss_size, $10) - FileSize(data);
         hdr.ss := smz_bss_seg + (bss_size SHR 4);
 
         { resolve segrelo }
@@ -310,15 +312,18 @@ BEGIN
                 Seek(build_plan.hdr, r^.hdr_ofs);
                 WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
+                        IF rrec.seg = r^.code_segnum THEN BEGIN
+                                Inc(rrec.offset, r^.linker.smz_code_ofs);
+                        END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
+                                Inc(rrec.offset, r^.linker.smz_data_ofs);
+                        END;
+
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
                                 fix := smz_code_seg;
-                                Inc(rrec.offset, r^.linker.smz_code_ofs);
                         END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
                                 fix := smz_data_seg;
-                                Inc(rrec.offset, r^.linker.smz_data_ofs);
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
                                 fix := smz_bss_seg;
-                                Inc(rrec.offset, r^.linker.smz_bss_ofs);
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
                                 IF import^.export^.rec.seg
@@ -331,7 +336,6 @@ BEGIN
                                         = import^.export^.rdf^.bss_segnum THEN
                                         fix := smz_bss_seg;
                         END;
-
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 SetMem(code, RWIDTH16
                                         , rrec.offset
@@ -345,7 +349,7 @@ BEGIN
                         END;
                         mzr.ofs := rrec.offset;
                         BlockWrite(o, mzr, SizeOf(MZ_RELOC));
-                        Inc(hdr.num_relocs);
+                        Inc(hdr.relocs_count);
                 END;
                 r := r^.next;
         END;
@@ -361,24 +365,25 @@ BEGIN
                         rrec.seg := rrec.seg AND $3F;
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 Inc(rrec.offset, r^.linker.smz_code_ofs);
-                                IF selfr THEN Dec(fix, r^.linker.smz_code_ofs);
                         END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
                                 Inc(rrec.offset, r^.linker.smz_data_ofs);
-                                IF selfr THEN Dec(fix, r^.linker.smz_data_ofs);
                         END;
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
+                                IF NOT selfr THEN Inc(fix, r^.linker.smz_code_ofs);
                         END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                                IF NOT selfr THEN Inc(fix, r^.linker.smz_data_ofs);
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                                IF NOT selfr THEN Inc(fix, r^.linker.smz_bss_ofs);
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
-                                Inc(fix, import^.export^.rec.offset);
                                 IF import^.export^.rec.seg = import^.export^.rdf^.code_segnum THEN BEGIN
-                                        Inc(fix, import^.export^.rdf^.linker.smz_code_ofs);
+                                        IF selfr THEN fix := -r^.linker.smz_code_ofs;
                                 END ELSE IF import^.export^.rec.seg = import^.export^.rdf^.data_segnum THEN BEGIN
-                                        Inc(fix, import^.export^.rdf^.linker.smz_data_ofs);
+                                        IF selfr THEN fix := -r^.linker.smz_data_ofs;
                                 END ELSE IF import^.export^.rec.seg = import^.export^.rdf^.bss_segnum THEN BEGIN
-                                        Inc(fix, import^.export^.rdf^.linker.smz_bss_ofs);
+                                        IF selfr THEN fix := -r^.linker.smz_bss_ofs;
                                 END;
+                                Inc(fix, import^.export^.rec.offset);
                         END;
 
                         IF rrec.seg = r^.code_segnum THEN BEGIN
@@ -396,19 +401,19 @@ BEGIN
 
         IF NOT err THEN BEGIN
                 FilePosAlign(o, $10);
-                hdr.signature := MZ_SIGN;
-                hdr.header_paragraphs := FilePos(o) SHR 4;
+                hdr.sign := MZ_SIGN;
+                hdr.header_par := FilePos(o) SHR 4;
                 Seek(code, 0);
                 BlockCopy(code, o, FileSize(code));
                 Seek(data, 0);
                 BlockCopy(data, o, FileSize(data));
-                hdr.blocks_in_file := ((FileSize(code) + FileSize(data)) SHR 9) + 1;
-                hdr.bytes_in_last_block := ((FileSize(code) + FileSize(data)) AND $1FF);
-                hdr.reloc_table_offset := SizeOf(MZ_HEADER);
-                hdr.min_extra_paragraphs :=
+                hdr.blk_count := ((FileSize(code) + FileSize(data)) SHR 9) + 1;
+                hdr.lblk_size := ((FileSize(code) + FileSize(data)) AND $1FF);
+                hdr.relocs_ofs := SizeOf(MZ_HEADER);
+                hdr.min_ext_par :=
                         (hdr.ss - smz_bss_seg)
                         + (stack_size SHR 4) + 1;
-                hdr.max_extra_paragraphs := hdr.min_extra_paragraphs;
+                hdr.max_ext_par := hdr.min_ext_par;
                 hdr.sp := stack_size;
                 Seek(o, 0);
                 BlockWrite(o, hdr, SizeOf(MZ_HEADER));

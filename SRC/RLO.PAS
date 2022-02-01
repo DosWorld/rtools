@@ -106,30 +106,6 @@ IMAGE_BUILD_PLAN = RECORD
         linked_out  : BFILE;
 END;
 
-CONST
-MZ_SIGN = $5A4D;
-
-TYPE
-MZ_HEADER = RECORD
-        signature
-        , bytes_in_last_block
-        , blocks_in_file
-        , num_relocs
-        , header_paragraphs
-        , min_extra_paragraphs
-        , max_extra_paragraphs
-        , ss, sp
-        , checksum
-        , ip, cs
-        , reloc_table_offset
-        , overlay_number : WORD;
-END;
-
-MZ_RELOC = RECORD
-        ofs : WORD;
-        seg : WORD;
-END;
-
 FUNCTION AlignValue(value : DWORD; align : DWORD) : DWORD;
 FUNCTION ReadRDF(VAR src, dst_headers, dst_code, dst_data : BFILE; VAR code_segnum, data_segnum, bss_segnum : WORD) : BOOLEAN;
 FUNCTION FindEntryPoint(hdr : BFILE; hdr_size : DWORD; VAR name : RDFNAME; VAR ip : DWORD) : BOOLEAN;
@@ -479,10 +455,10 @@ BEGIN
                 exports := r^.linker.export;
                 WHILE (exports <> NIL) AND (export = NIL) DO BEGIN
                         i := 1;
-                        WHILE i <= r^.linker.export^.export_count DO BEGIN
-                                IF r^.linker.export^.export[i].rec.name[0] = name[0] THEN
-                                        IF r^.linker.export^.export[i].rec.name = name THEN BEGIN
-                                                export := @r^.linker.export^.export[i];
+                        WHILE i <= exports^.export_count DO BEGIN
+                                IF exports^.export[i].rec.name[0] = name[0] THEN
+                                        IF exports^.export[i].rec.name = name THEN BEGIN
+                                                export := @exports^.export[i];
                                                 BREAK;
                                         END;
                                 Inc(i);
@@ -668,10 +644,7 @@ BEGIN
                 Seek(i, r^.file_code);
                 r^.linker.smz_code_ofs := FilePos(code);
                 BlockCopy(i, code, r^.code_size);
-                WHILE (r^.code_size AND 3) <> 0 DO BEGIN
-                        WriteByte(code, $90);
-                        Inc(r^.code_size);
-                END;
+                WHILE (FilePos(code) AND 15) <> 0 DO WriteByte(code, $90);
 
                 Seek(i, r^.file_data);
                 r^.linker.smz_data_ofs := FilePos(data);
@@ -726,32 +699,30 @@ BEGIN
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 rrec.seg := code_segnum;
                                 Inc(rrec.offset, r^.linker.smz_code_ofs);
-                                IF selfr THEN fix := -r^.linker.smz_code_ofs
-                                ELSE fix := r^.linker.smz_code_ofs;
                         END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
                                 rrec.seg := data_segnum;
                                 Inc(rrec.offset, r^.linker.smz_data_ofs);
-                                IF selfr THEN fix := -r^.linker.smz_data_ofs
-                                ELSE fix := r^.linker.smz_data_ofs;
                         END;
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
+                                IF NOT selfr THEN Inc(fix, r^.linker.smz_code_ofs);
                         END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                                IF NOT selfr THEN Inc(fix, r^.linker.smz_data_ofs);
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                                IF NOT selfr THEN Inc(fix, r^.linker.smz_bss_ofs);
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
-                                fix := import^.export^.rec.offset;
-                                IF import^.export^.rec.seg
-                                        = code_segnum THEN BEGIN
+                                IF import^.export^.rec.seg = code_segnum THEN BEGIN
                                         rrec.rseg := code_segnum;
-                                END ELSE IF import^.export^.rec.seg
-                                        = data_segnum THEN BEGIN
+                                        IF selfr THEN fix := -r^.linker.smz_code_ofs;
+                                END ELSE IF import^.export^.rec.seg = data_segnum THEN BEGIN
                                         rrec.rseg := data_segnum;
-                                END ELSE IF import^.export^.rec.seg
-                                        = bss_segnum THEN BEGIN
+                                        IF selfr THEN fix := -r^.linker.smz_data_ofs;
+                                END ELSE IF import^.export^.rec.seg = bss_segnum THEN BEGIN
                                         rrec.rseg := bss_segnum;
+                                        IF selfr THEN fix := -r^.linker.smz_bss_ofs;
                                 END;
+                                Inc(fix, import^.export^.rec.offset);
                         END;
-
                         IF rrec.seg = code_segnum THEN BEGIN
                                 IncMem(code, rrec.width
                                         , rrec.offset

@@ -30,7 +30,8 @@ rlink output formats:
 * com - simple MS-DOS .com file
 * mzs - MS-DOS exe, small memory model (CS = code, DS = data,bss,stack)
 * mzl - MS-DOS exe, large memory model (each rdf have own CS, DS and BSS segment)
-* dospe - PE32 with linked HX-DOS Extender loader (stub).
+* adam - DOS32 Extender.
+* dospe - PE32 with linked HX-DOS Extender loader (stab).
 * rdf - Linked rdf into one segment (like a .com, but with zero offset and name). Could be used as DLL.
 
 If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
