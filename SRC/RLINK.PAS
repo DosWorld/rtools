@@ -27,6 +27,7 @@ USES dos, system2, args, StrBin, rdffmt, rlo
         , rlordf
         , rlomz
         , rloadam
+        , rlole
         , rlope;
 
 {$DEFINE DEBUG1}
@@ -168,28 +169,34 @@ ARG_ENTRY  = 'entry';
 ARG_ORG    = 'org';
 ARG_BSS    = 'bss';
 ARG_RDF    = 'rdf';
-ARG_NOEMEM = 'noextmem';
+ARG_NOEMEM = 'noxms';
 ARG_COM    = 'com';
 ARG_MZL    = 'mzl';
 ARG_MZS    = 'mzs';
 ARG_DOSPE  = 'dospe';
 ARG_ADAM   = 'adam';
+ARG_LE     = 'le';
+ARG_ZRDX   = 'zrdx';
+ARG_HX     = 'hx';
 ARG_WINPE  = 'winpe';
 ARG_STACK  = 's';
 LIB_ENV    = 'RLIB';
 
-OPTIONS_DESC : ARRAY[0..11] OF TOPT = (
+OPTIONS_DESC : ARRAY[0..14] OF TOPT = (
 (name: ARG_OUTPUT; otype: OPTSTR;  help: 'Set output file name.'),
 (name: ARG_ORG;    otype: OPTSTR;  help: 'Set code start offset for COM output.'; default:'0x0100'),
 (name: ARG_ENTRY;  otype: OPTSTR;  help: 'Set entry-point name.'; default:'start'),
 (name: ARG_STACK;  otype: OPTSTR;  help: 'Set stack size in KB.'; default:'8'),
 (name: ARG_BSS;    otype: OPTBOOL; help: 'Reserve BSS-memory for COM/RDF output.'),
 (name: ARG_NOEMEM; otype: OPTBOOL; help: 'Use temporary files instead EMS/XMS memory.'),
+(name: ARG_ZRDX;   otype: OPTBOOL; help: 'Bind ZRDX Dos-Extender to LE file.'),
+(name: ARG_HX;     otype: OPTBOOL; help: 'Bind HX Dos-Extender stub to PE file.'),
 (name: ARG_RDF;    otype: OPTCMD;  help: 'Link RDF file. Merge all segments into one code segment.'),
 (name: ARG_COM;    otype: OPTCMD;  help: 'Link COM file, tiny memory model.'),
 (name: ARG_MZS;    otype: OPTCMD;  help: 'Link MZ file, small memory model.'),
 (name: ARG_MZL;    otype: OPTCMD;  help: 'Link MZ file, large memory model.'),
 (name: ARG_ADAM;   otype: OPTCMD;  help: 'Link ADAM file (DOS32 Dos-Extender).'),
+(name: ARG_LE;     otype: OPTCMD;  help: 'Link LE file (old-style DPMI executable).'),
 (name: ARG_DOSPE;  otype: OPTCMD;  help: 'Link DOS-PE file (PE without imports).') {,
 (name: ARG_WINPE;  otype: OPTCMD;  help: 'Link Win32-PE file.')}
 );
@@ -286,13 +293,20 @@ BEGIN
                         , entry_name
                         , outfname
                         , bin_ss);
+        END ELSE IF (NOT err) AND (cmd = ARG_LE) THEN BEGIN
+                err := LinkSmallModel(build_plan);
+                DestroyPlan(build_plan);
+                IF NOT err THEN err := LinkAndGenLE(build_plan.linked_out
+                        , entry_name
+                        , outfname
+                        , bin_ss, GetOptBool(myArgs, ARG_ZRDX));
         END ELSE IF (NOT err) AND (cmd = ARG_DOSPE) THEN BEGIN
                 err := LinkSmallModel(build_plan);
                 DestroyPlan(build_plan);
                 IF NOT err THEN err := LinkAndGenDosPE(build_plan.linked_out
                         , entry_name
                         , outfname
-                        , bin_ss);
+                        , bin_ss, GetOptBool(myArgs, ARG_HX));
         END ELSE DestroyPlan(build_plan);
         Close(build_plan.linked_out);
         IF err THEN Halt(1);

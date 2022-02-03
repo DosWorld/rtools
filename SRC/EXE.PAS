@@ -27,9 +27,11 @@ UNIT Exe;
 INTERFACE
 
 TYPE DWORD   = LONGINT;
+
 { ====================================================
   MZ Data structures and constants
   ==================================================== }
+
 CONST MZ_SIGN = $5A4D;
 
 TYPE
@@ -54,10 +56,6 @@ MZ_RELOC = RECORD
         ofs : WORD;
         seg : WORD;
 END;
-
-{ ====================================================
-  LE Data structures and constants
-  ==================================================== }
 
 { ====================================================
   PE32 Data structures and constants
@@ -161,6 +159,10 @@ PE32_FULL_HEADER = RECORD
         optHeader  : PE32_OPTIONAL_HEADER;
 END;
 
+{ ====================================================
+  ADAM Data structures and constants
+  ==================================================== }
+
 TYPE
 TADAM_MAGIC = ARRAY[0..3] OF CHAR;
 
@@ -183,6 +185,101 @@ ADAM_HEADER = RECORD
 END;
 
 { ====================================================
+  LE Data structures and constants
+  ==================================================== }
+
+CONST
+LE_MAGIC    = $454C;
+LE_CPU_I286 = 1;
+LE_CPU_I386 = 2;
+LE_CPU_I486 = 3;
+LE_CPU_I586 = 5;
+
+LE_OS2      = 1;
+LE_WIN386   = 4;
+
+TYPE
+LE_HEADER = RECORD
+        sign                     : WORD;
+        byteOrder                : BYTE;
+        wordOrder                : BYTE;
+        lxVersion                : DWORD;
+        cpuType                  : WORD;
+        osType                   : WORD;
+        moduleVersion            : DWORD;
+        moduleFlags              : DWORD;
+        moduleNumPages           : DWORD;
+        eipObject                : DWORD;
+        eip                      : DWORD;
+        espObject                : DWORD;
+        esp                      : DWORD;
+        pageSize                 : DWORD;
+        lPageSize                : DWORD;
+        fixupSectionSize         : DWORD;
+        fixupSectionChkSum       : DWORD;
+        loaderSectionSize        : DWORD;
+        loaderSectionChkSum      : DWORD;
+        objectTblOfs             : DWORD;
+        moduleNumObjects         : DWORD;
+        objectPageTblOfs         : DWORD;
+        objectIterPagesOfs       : DWORD;
+        resourceTblOfs           : DWORD;
+        numResourceTblEntries    : DWORD;
+        residentNameTblOfs       : DWORD;
+        entryTblOfs              : DWORD;
+        moduleDirectivesOfs      : DWORD;
+        numModuleDirectives      : DWORD;
+        fixupPageTblOfs          : DWORD;
+        fixupRecordTblOfs        : DWORD;
+        importModuleTblOfs       : DWORD;
+        numImportModEntries      : DWORD;
+        importProcTblOfs         : DWORD;
+        perPageChkSumOfs         : DWORD;
+        dataPagesOfs             : DWORD;
+        numPreloadPages          : DWORD;
+        nonResidentNameTblOfs    : DWORD;
+        nonResidentNameTblLen    : DWORD;
+        nonResidentNameTblChkSum : DWORD;
+        autoDsObjectNum          : DWORD;
+        debugInfoOfs             : DWORD;
+        debugInfoLen             : DWORD;
+        numInstancePreload       : DWORD;
+        numInstanceDemand        : DWORD;
+        heapSize                 : DWORD;
+        stackSize                : DWORD;
+END;
+
+LE_OBJECT_TABLE_ENTRY = RECORD
+        virtualSize       : DWORD;
+        relocBaseAddr     : DWORD;
+        objectFlags       : DWORD;
+        pageTblIndex      : DWORD;
+        numPageTblEntries : DWORD;
+        reserved          : DWORD;
+END;
+
+LE_OBJECT_PAGE_TABLE_ENTRY = RECORD
+        pnumHi      : WORD;
+        pnumLo      : BYTE;
+        flags       : BYTE;
+END;
+
+LE_FIXUP16 = RECORD
+        source      : BYTE;
+        flags       : BYTE;
+        ofs         : WORD;
+END;
+
+LE_FIXUP32 = RECORD
+        source      : BYTE;
+        flags       : BYTE;
+        obj         : WORD;
+        ofs         : DWORD;
+        targetOfs   : DWORD;
+        srcOfs      : DWORD;
+END;
+
+{ ====================================================
   EXE Stubs: Simple (LX/PE), ZRDX(LX), HX(PE), ADAM(ADAM)
   ==================================================== }
 
@@ -190,11 +287,13 @@ END;
   Simple stub. Do nothing, just write string to STDOUT.
   Should be applied to LX, PE
   ==================================================== }
-CONST SIMPLE_EXE_STUB : ARRAY[0..63] OF BYTE = (
-$4D,$5A,$3C,$00,$01,$00,$00,$00,$02,$00,$94,$00,$94,$00,$F0,$FF,
+CONST SIMPLE_EXE_STUB : ARRAY[0..95] OF BYTE = (
+$4D,$5A,$3C,$00,$01,$00,$00,$00,$04,$00,$94,$00,$94,$00,$F0,$FF,
 $40,$09,$00,$00,$00,$01,$F0,$FF,$40,$00,$00,$00,$00,$00,$00,$00,
-$FC,$31,$C0,$50,$BA,$0C,$01,$B4,$09,$CD,$21,$C3,$54,$68,$69,$73,
-$20,$69,$73,$20,$57,$69,$6E,$50,$45,$2E,$24,$00,$40,$00,$00,$00);
+$53,$50,$48,$49,$4E,$58,$20,$43,$2D,$2D,$20,$30,$2E,$32,$33,$39,
+$41,$70,$72,$20,$32,$37,$20,$32,$30,$30,$37,$00,$60,$00,$00,$00,
+$FC,$31,$C0,$50,$BA,$0C,$01,$B4,$09,$CD,$21,$C3,$46,$6F,$72,$20,
+$44,$50,$4D,$49,$20,$6F,$6E,$6C,$79,$21,$24,$00,$00,$00,$00,$00);
 
 { ====================================================
   ZRDX.EXE - Part of Zurenava DOS Extender https://github.com/DosWorld/zrdx/

@@ -24,7 +24,7 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlo;
 
-{$DEFINE DEBUG1}
+{$DEFINE DEBUG}
 
 INTERFACE
 

@@ -33,7 +33,8 @@ USES system2, rdffmt, rlo;
 FUNCTION LinkAndGenDosPE(VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
-        stack_size : LONGINT) : BOOLEAN;
+        stack_size : LONGINT;
+        hx_stub : BOOLEAN) : BOOLEAN;
 
 IMPLEMENTATION
 
@@ -171,8 +172,10 @@ END;
 FUNCTION LinkAndGenDosPE(VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
-        stack_size: LONGINT) : BOOLEAN;
-VAR     err          : BOOLEAN;
+        stack_size: LONGINT;
+        hx_stub : BOOLEAN) : BOOLEAN;
+
+VAR     err           : BOOLEAN;
 
         code, data    : BFILE;
         hdr, o        : BFILE;
@@ -262,7 +265,9 @@ BEGIN
                 err := NOT FindEntryPoint(hdr, FileSize(hdr), entry_name, ip);
         END;
 
-        BlockWrite(o, HX_EXE_STUB, SizeOf(HX_EXE_STUB));
+        IF hx_stub THEN BlockWrite(o, HX_EXE_STUB, SizeOf(HX_EXE_STUB))
+        ELSE BlockWrite(o, SIMPLE_EXE_STUB, SizeOf(SIMPLE_EXE_STUB));
+
         FilePosAlign(o, $10);
         pe_start := FilePos(o);
         SetWord(o, $003C, pe_start);
@@ -341,11 +346,6 @@ BEGIN
                         IF rrec.rseg = code_segnum THEN Inc(fix, code_ofs)
                         ELSE IF rrec.rseg = data_segnum THEN Inc(fix, data_ofs)
                         ELSE IF rrec.rseg = bss_segnum THEN Inc(fix, bss_ofs);
-{
-                END ELSE IF selfr THEN BEGIN
-                        IF rrec.seg = code_segnum THEN Dec(fix, code_ofs)
-                        ELSE IF rrec.seg = data_segnum THEN Dec(fix, data_ofs);
-}
                 END;
 
                 IF rrec.width = RWIDTH8 THEN BEGIN
@@ -385,13 +385,6 @@ BEGIN
                 sectCode.ptrRaw := FilePos(o);
                 Seek(code, 0);
                 BlockCopy(code, o, FileSize(code));
-{ ------------------------------------------------------------ }
-                Assign(t, 'a.bin');
-                Rewrite(t);
-                Seek(code, 0);
-                BlockCopy(code, t, FileSize(code));
-                Close(t);
-{ ------------------------------------------------------------ }
 
                 FilePosAlign(o, PE_FILE_ALIGN);
                 sectData.ptrRaw := FilePos(o);
