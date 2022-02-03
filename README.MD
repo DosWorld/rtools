@@ -33,18 +33,20 @@ So, don't be confused with dos 16-bit application - RLINK known how to handle mo
 
 ## Supported output formats
 
-* com - simple MS-DOS .com file
-* mzs - MS-DOS exe, small memory model (CS = code, DS = data,bss,stack)
-* mzl - MS-DOS exe, large memory model (each rdf have own CS, DS and BSS segment)
-* adam - DOS32 Extender.
-* lx - OS/2 and DPMI exe file.
-* pe - DOS PE32 file (PE32 without imports).
-* rdf - Linked rdf into one segment (like a .com, but with zero offset and name). Could be used as DLL.
+* COM - simple MS-DOS .com file
+* MZS - MS-DOS exe, small memory model (CS = code, DS = data,bss,stack)
+* MZL - MS-DOS exe, large memory model (each rdf have own CS, DS and BSS segment)
+* ADAM - DOS32 Extender.
+* LX - OS/2 and DPMI exe file.
+* PE - DOS PE32 file (PE32 without imports).
+* RDF - Linked rdf into one code-segment (like a .com, but with zero offset and name). Could be used as DLL.
+If you load code segment at ????:0000 - you don't need process relocations. And, as bonus, you can use symbol table.
 
 ## Buitin stubs and extenders
 
-* Simple stub (will write something like "This is dpmi exe!")
-* DOS32 Extender loader (for ADAM)
+* Simple stub (will write something like "This is dpmi exe!"). Can be used with HX-DOS Extender or with LX format
+ (if you want bind other DOS-Extender).
+* Loader DOS32 Extender (for ADAM)
 * ZRDX DOS-Extender (for LX)
 * Loader HX-DOS Extender (for PE).
 
