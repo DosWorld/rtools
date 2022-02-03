@@ -6,6 +6,11 @@ global _mdata
 section .text
         nop
 _main:
-        ret
+        mov dx, hello
+        mov ah,9
+        int 21h
+        retn
 section .data
+hello:
+        db 'Hello, world!$'
 _mdata:
