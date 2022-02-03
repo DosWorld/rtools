@@ -28,7 +28,11 @@ Nasm works different with this files. So, I strongly advise to use
 
 # RLINK
 
-rlink output formats:
+RLINK support EMS/XMS memory and or can work with temporary files.
+So, don't be confused with dos 16-bit application - RLINK known how to handle more then 64kb and 640kb :).
+
+## Supported output formats
+
 * com - simple MS-DOS .com file
 * mzs - MS-DOS exe, small memory model (CS = code, DS = data,bss,stack)
 * mzl - MS-DOS exe, large memory model (each rdf have own CS, DS and BSS segment)
@@ -37,7 +41,8 @@ rlink output formats:
 * dospe - PE32 file (without imports).
 * rdf - Linked rdf into one segment (like a .com, but with zero offset and name). Could be used as DLL.
 
-Buitin stubs:
+## Buitin stubs and extenders
+
 * Simple stub (will write something like "This is dpmi exe!")
 * DOS32 Extender loader (for ADAM)
 * ZRDX DOS-Extender (for LX)
