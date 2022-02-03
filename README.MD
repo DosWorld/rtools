@@ -28,7 +28,7 @@ Nasm works different with this files. So, I strongly advise to use
 
 # RLINK
 
-RLINK support EMS/XMS memory and or can work with temporary files.
+RLINK support EMS/XMS memory or can work with temporary files.
 So, don't be confused with dos 16-bit application - RLINK known how to handle more then 64kb and 640kb :).
 
 ## Supported output formats
@@ -38,7 +38,7 @@ So, don't be confused with dos 16-bit application - RLINK known how to handle mo
 * mzl - MS-DOS exe, large memory model (each rdf have own CS, DS and BSS segment)
 * adam - DOS32 Extender.
 * lx - OS/2 and DPMI exe file.
-* dospe - PE32 file (without imports).
+* pe - DOS PE32 file (PE32 without imports).
 * rdf - Linked rdf into one segment (like a .com, but with zero offset and name). Could be used as DLL.
 
 ## Buitin stubs and extenders
@@ -46,7 +46,7 @@ So, don't be confused with dos 16-bit application - RLINK known how to handle mo
 * Simple stub (will write something like "This is dpmi exe!")
 * DOS32 Extender loader (for ADAM)
 * ZRDX DOS-Extender (for LX)
-* Loader HX-DOS Extender (for DOSPE).
+* Loader HX-DOS Extender (for PE).
 
 If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
@@ -64,7 +64,7 @@ https://github.com/DosWorld/libsystem2
 
 # Build
 
-You need Turbo Pascal and "make" in path.
+You need Turbo Pascal, System2 library and "make" in path.
 Just type:
 
         cd src
