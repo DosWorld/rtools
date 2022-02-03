@@ -26,13 +26,22 @@ Nasm works different with this files. So, I strongly advise to use
 * rlib - library manager
 * rlink - linker itself
 
+# RLINK
+
 rlink output formats:
 * com - simple MS-DOS .com file
 * mzs - MS-DOS exe, small memory model (CS = code, DS = data,bss,stack)
 * mzl - MS-DOS exe, large memory model (each rdf have own CS, DS and BSS segment)
 * adam - DOS32 Extender.
-* dospe - PE32 with linked HX-DOS Extender loader (stub).
+* lx - OS/2 and DPMI exe file.
+* dospe - PE32 file (without imports).
 * rdf - Linked rdf into one segment (like a .com, but with zero offset and name). Could be used as DLL.
+
+Buitin stubs:
+* Simple stub (will write something like "This is dpmi exe!")
+* DOS32 Extender loader (for ADAM)
+* ZRDX DOS-Extender (for LX)
+* Loader HX-DOS Extender (for DOSPE).
 
 If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
