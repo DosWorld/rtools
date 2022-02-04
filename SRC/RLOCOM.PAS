@@ -30,7 +30,7 @@ INTERFACE
 
 USES system2, rdffmt, rlo;
 
-FUNCTION LinkAndGenCOM(VAR input : BFILE;
+FUNCTION LinkAndGenCOM(mu : MEM_USAGE; VAR input : BFILE;
         code_ofs : DWORD;
         entry_name : RDFNAME;
         outfname : STRING;
@@ -38,7 +38,7 @@ FUNCTION LinkAndGenCOM(VAR input : BFILE;
 
 IMPLEMENTATION
 
-FUNCTION LinkAndGenCOM(VAR input : BFILE;
+FUNCTION LinkAndGenCOM(mu : MEM_USAGE; VAR input : BFILE;
         code_ofs    : DWORD;
         entry_name  : RDFNAME;
         outfname    : STRING;
@@ -82,19 +82,20 @@ BEGIN
         err := err OR (NOT (IsOpen(input) AND IsOpen(o)));
 
         IF NOT err THEN BEGIN
-                ReWriteMemFile(hdr);
-                ReWriteMemFile(code);
-                ReWriteMemFile(data);
-                {$IFNDEF DEBUG}
-                ReWriteMemFile(i);
-                {$ENDIF}
-                {$IFDEF DEBUG}
-                Assign(i, 'merge.rdf');
-                ReWrite(i);
-                {$ENDIF}
+                IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
+                        ReWriteTemp(hdr);
+                        ReWriteTemp(code);
+                        ReWriteTemp(data);
+                        ReWriteTemp(i);
+                END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
+                        ReWriteMemFile(hdr);
+                        ReWriteMemFile(code);
+                        ReWriteMemFile(data);
+                        ReWriteMemFile(i);
+                END;
         END;
 
-        IF NOT err THEN err := err OR MergeCodeDataBss(input, i, reserv_bss);
+        IF NOT err THEN err := err OR MergeCodeDataBss(mu, input, i, reserv_bss);
 
         Seek(i, 0);
         err := err OR (NOT ReadRDF(i, hdr, code, data, code_segnum, data_segnum, bss_segnum));

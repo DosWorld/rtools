@@ -30,7 +30,7 @@ INTERFACE
 
 USES system2, rdffmt, rlo;
 
-FUNCTION LinkAndGenLE(VAR input : BFILE;
+FUNCTION LinkAndGenLE(mu : MEM_USAGE; VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size : LONGINT;
@@ -44,7 +44,7 @@ CONST
 SECTION_ALIGN = $10000;
 IMAGE_BASE = $10000;
 
-FUNCTION LinkAndGenLE(VAR input : BFILE;
+FUNCTION LinkAndGenLE(mu : MEM_USAGE; VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size : LONGINT;
@@ -103,15 +103,23 @@ BEGIN
 
         err := err OR (NOT (IsOpen(input) AND IsOpen(o)));
         IF NOT err THEN BEGIN        
-                ReWriteMemFile(hdr);
-                ReWriteMemFile(code);
-                ReWriteMemFile(data);
-                ReWriteMemFile(inp);
-                ReWriteMemFile(relocs);
+                IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
+                        ReWriteTemp(hdr);
+                        ReWriteTemp(code);
+                        ReWriteTemp(data);
+                        ReWriteTemp(inp);
+                        ReWriteTemp(relocs);
+                END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
+                        ReWriteMemFile(hdr);
+                        ReWriteMemFile(code);
+                        ReWriteMemFile(data);
+                        ReWriteMemFile(inp);
+                        ReWriteMemFile(relocs);
+                END;
                 err := NOT (IsOpen(hdr) AND IsOpen(code) AND IsOpen(data) AND IsOpen(inp) AND IsOpen(relocs));
         END;
 
-        IF NOT err THEN err := err OR MergeCodeDataBss(input, inp, FALSE);
+        IF NOT err THEN err := err OR MergeCodeDataBss(mu, input, inp, FALSE);
 
         IF NOT err THEN BEGIN
                 Seek(input, 0);

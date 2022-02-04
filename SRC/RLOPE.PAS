@@ -30,7 +30,7 @@ INTERFACE
 
 USES system2, rdffmt, rlo;
 
-FUNCTION LinkAndGenDosPE(VAR input : BFILE;
+FUNCTION LinkAndGenDosPE(mu : MEM_USAGE; VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size : LONGINT;
@@ -169,7 +169,7 @@ BEGIN
         END;
 END;
 
-FUNCTION LinkAndGenDosPE(VAR input : BFILE;
+FUNCTION LinkAndGenDosPE(mu : MEM_USAGE; VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size: LONGINT;
@@ -227,9 +227,15 @@ BEGIN
 
         err := err OR (NOT (IsOpen(input) AND IsOpen(o)));
         IF NOT err THEN BEGIN        
-                ReWriteMemFile(hdr);
-                ReWriteMemFile(code);
-                ReWriteMemFile(data);
+                IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
+                        ReWriteTemp(hdr);
+                        ReWriteTemp(code);
+                        ReWriteTemp(data);
+                END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
+                        ReWriteMemFile(hdr);
+                        ReWriteMemFile(code);
+                        ReWriteMemFile(data);
+                END;
                 err := NOT (IsOpen(hdr) AND IsOpen(code) AND IsOpen(data))
         END;
 

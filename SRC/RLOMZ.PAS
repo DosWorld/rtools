@@ -30,11 +30,12 @@ INTERFACE
 
 USES system2, rdffmt, rlo;
 
-FUNCTION LinkAndGenMZS(VAR build_plan : IMAGE_BUILD_PLAN;
+FUNCTION LinkAndGenMZS(mu : MEM_USAGE; VAR build_plan : IMAGE_BUILD_PLAN;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size : LONGINT) : BOOLEAN;
-FUNCTION LinkAndGenMZL(VAR build_plan : IMAGE_BUILD_PLAN;
+
+FUNCTION LinkAndGenMZL(mu : MEM_USAGE; VAR build_plan : IMAGE_BUILD_PLAN;
         entry_name : RDFNAME;
         outfname   : STRING;
         stack_size : LONGINT) : BOOLEAN;
@@ -43,7 +44,7 @@ IMPLEMENTATION
 
 USES exe;
 
-FUNCTION LinkAndGenMZL(VAR build_plan : IMAGE_BUILD_PLAN;
+FUNCTION LinkAndGenMZL(mu : MEM_USAGE; VAR build_plan : IMAGE_BUILD_PLAN;
         entry_name : RDFNAME;
         outfname   : STRING;
         stack_size : LONGINT) : BOOLEAN;
@@ -74,7 +75,11 @@ BEGIN
         FillChar(hdr, SizeOf(MZ_HEADER), #0);
         BlockWrite(o, hdr, SizeOf(MZ_HEADER));
 
-        ReWriteMemFile(code);
+        IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
+                ReWriteTemp(code);
+        END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
+                ReWriteMemFile(code);
+        END;
         err := err OR (NOT IsOpen(code));
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
@@ -216,7 +221,7 @@ BEGIN
         LinkAndGenMZL := err;
 END;
 
-FUNCTION LinkAndGenMZS(VAR build_plan : IMAGE_BUILD_PLAN;
+FUNCTION LinkAndGenMZS(mu : MEM_USAGE; VAR build_plan : IMAGE_BUILD_PLAN;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size : LONGINT) : BOOLEAN;
@@ -251,8 +256,13 @@ BEGIN
         FillChar(hdr, SizeOf(MZ_HEADER), #0);
         BlockWrite(o, hdr, SizeOf(MZ_HEADER));
 
-        ReWriteMemFile(code);
-        ReWriteMemFile(data);
+        IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
+                ReWriteTemp(code);
+                ReWriteTemp(data);
+        END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
+                ReWriteMemFile(code);
+                ReWriteMemFile(data);
+        END;
         err := err OR (NOT (IsOpen(code) AND IsOpen(data)));
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
@@ -420,6 +430,7 @@ BEGIN
         END;
         IF err THEN SetDeleteOnClose(o, TRUE);
         Close(code);
+        Close(data);
         Close(o);
         LinkAndGenMZS := err;
 END;

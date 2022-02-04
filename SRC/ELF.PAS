@@ -28,7 +28,50 @@ INTERFACE
 
 TYPE DWORD   = LONGINT;
 
+CONST
+ET_NONE   = 0;
+ET_REL    = 1;
+ET_EXEC   = 2;
+ET_DYN    = 3;
+ET_CORE   = 4;
+ET_LOPROC = $ff00;
+ET_HIPROC = $ffff;
+
+EM_386 = 3;
+EV_CURRENT = 1;
+
+EI_MAG0    = 0;
+EI_MAG1    = 1;
+EI_MAG2    = 2;
+EI_MAG3    = 3;
+EI_CLASS   = 4;
+EI_DATA    = 5;
+EI_VERSION = 6;
+
+ELFMAG0 = $7f;
+ELFMAG1 = ORD('E');
+ELFMAG2 = ORD('L');
+ELFMAG3 = ORD('F');
+
+ELFCLASS32  = 1;
+ELFDATA2LSB = $01020304;
+
+TYPE
 ELF_HEADER = RECORD
+      e_ident     : ARRAY [0..15] OF BYTE;
+      e_type      : WORD;
+      e_machine   : WORD;
+      e_version   : DWORD;
+      e_entry     : DWORD;
+      e_phoff     : DWORD;
+      e_shoff     : DWORD;
+      e_flags     : DWORD;
+      e_ehsize    : WORD;
+      e_phentsize : WORD;
+      e_phnum     : WORD;
+      e_shentsize : WORD;
+      e_shnum     : WORD;
+      e_shstrndx  : WORD;
 END;
 
 IMPLEMENTATION
