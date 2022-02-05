@@ -58,11 +58,12 @@ If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
 Memory using strategy could be setted with /emem=<v> parameter:
 
-|---------|--------------------------------------------------------|
-| /emem=0 | Use temporary files, 16k buffer in conventional memory |
-| /emem=1 | Use temporary files, 16k buffer + cache in EMS/XMS     |
-| /emem=2 | No temporary files, image will be build in EMS/XMS     |
-|---------|--------------------------------------------------------|
+ | /emem | Result |
+ |:-----:|:-------------------------------------------------------|
+ |   0   | Use temporary files, 16k buffer in conventional memory |
+ |   1   | Use temporary files, 16k buffer + cache in EMS/XMS     |
+ |   2   | No temporary files, image will be build in EMS/XMS     |
+ |-------|--------------------------------------------------------|
 
 # How to use
 
