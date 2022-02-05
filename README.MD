@@ -54,6 +54,16 @@ If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
 "Make" utility available at https://github.com/DosWorld/smallmake
 
+## Memory usage
+
+Memory using strategy could be setted with /emem=<v> parameter:
+
+|---------|--------------------------------------------------------|
+| /emem=0 | Use temporary files, 16k buffer in conventional memory |
+| /emem=1 | Use temporary files, 16k buffer + cache in EMS/XMS     |
+| /emem=2 | No temporary files, image will be build in EMS/XMS     |
+|---------|--------------------------------------------------------|
+
 # How to use
 
 See MAKEFILE in TEST directory.
