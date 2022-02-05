@@ -58,13 +58,13 @@ If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
 Memory using strategy could be changed with /emem=val parameter:
 
- | /emem | Result                                                 |
+ | /emem | Memory used (per one file)                             |
  |:-----:|:-------------------------------------------------------|
  |   0   | Use temporary files, 16k buffer in conventional memory |
  |   1   | Use temp files, 16k buffer + 256k cache in EMS/XMS     |
  |   2   | No temp files, binary image will be build in EMS/XMS   |
 
-(by default: /emem=1)
+by default: emem is 1
 
 RLink will use many temporary files in process (1 for code segment, 1 for
 data segment, one more - for relocation data and header, etc).
