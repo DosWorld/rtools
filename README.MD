@@ -56,13 +56,23 @@ If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
 ## Memory usage
 
-Memory using strategy could be setted with /emem=<v> parameter:
+Memory using strategy could be changed with /emem=val parameter:
 
- | /emem=<v> | Result                                                 |
- |:---------:|:-------------------------------------------------------|
- |     0     | Use temporary files, 16k buffer in conventional memory |
- |     1     | Use temporary files, 16k buffer + cache in EMS/XMS     |
- |     2     | No temporary files, image will be build in EMS/XMS     |
+ | /emem | Result                                                 |
+ |:-----:|:-------------------------------------------------------|
+ |   0   | Use temporary files, 16k buffer in conventional memory |
+ |   1   | Use temp files, 16k buffer + 256k cache in EMS/XMS     |
+ |   2   | No temp files, binary image will be build in EMS/XMS   |
+
+(by default: /emem=1)
+
+RLink will use many temporary files in process (1 for code segment, 1 for
+data segment, one more - for relocation data and header, etc).
+
+EMS/XMS have restriction - 64mb per one handler, RLink will allocate
+multiple handlers for one file, so 64mb is not a limit for binary image.
+
+Place for temporary files could be configured via TEMP, TMP env variables.
 
 # How to use
 
