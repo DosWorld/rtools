@@ -410,29 +410,29 @@ END;
 PROCEDURE WRITE_RDF(VAR headers : BFILE; csegnum : WORD; VAR code : BFILE; dsegnum : WORD; VAR data : BFILE; VAR dst : BFILE);
 VAR     p, p0 : DWORD;
 BEGIN
-        Seek(code, 0);
-        Seek(data, 0);
-        Seek(headers, 0);
-
         Write(dst, RDOFF2_SIGN);
         p := FilePos(dst);
         WriteDWord(dst, 0);
 
         IF IsOpen(headers) THEN BEGIN
                 WriteDWord(dst, FileSize(headers));
+                Seek(headers, 0);
                 BlockCopy(headers, dst, FileSize(headers));
         END ELSE WriteDWord(dst, 0);
 
         IF IsOpen(code) THEN BEGIN
                 WRITE_SEG(dst, csegnum, RDFCS, FileSize(code));
+                Seek(code, 0);
                 BlockCopy(code, dst, FileSize(code));
         END;
+
         IF IsOpen(data) THEN BEGIN
                 WRITE_SEG(dst, dsegnum, RDFDS, FileSize(data));
+                Seek(data, 0);
                 BlockCopy(data, dst, FileSize(data));
         END;
-        WRITE_SEG(dst, 0, 0, 0);
 
+        WRITE_SEG(dst, 0, 0, 0);
         p0 := FilePos(dst);
         Seek(dst, p);
         WriteDWord(dst, p0 - p - SizeOf(DWORD));

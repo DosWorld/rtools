@@ -38,17 +38,16 @@ FUNCTION LinkAndGenRDF(mu : MEM_USAGE; VAR input : BFILE; outfname : STRING; res
 VAR     o           : BFILE;
         err         : BOOLEAN;
 BEGIN
-        err := FALSE;
         Assign(o, outfname);
-        Rewrite(o);
-        err := err OR (NOT IsOpen(o));
+        ReWrite(o);
+        err := NOT IsOpen(o);
         IF NOT err THEN BEGIN
                 err := MergeCodeDataBss(mu, input, o, reserv_bss);
-        END;
 {$IFNDEF DEBUG}
-        IF err THEN SetDeleteOnClose(o, TRUE);
+                IF err THEN SetDeleteOnClose(o, TRUE);
 {$ENDIF}
-        Close(o);
+                Close(o);
+        END;
         LinkAndGenRDF := err;
 END;
 

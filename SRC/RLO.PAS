@@ -645,7 +645,6 @@ BEGIN
                 ReWriteMemFile(data);
                 ReWriteMemFile(new_headers);
         END;
-
         err := NOT (IsOpen(code) AND IsOpen(data) AND IsOpen(new_headers));
 
         r := build_plan.rdfs;

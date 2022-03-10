@@ -244,14 +244,27 @@ BEGIN
         System.Writeln('RLIB=', rlib);
         {$ENDIF}
 
-        SetUseTempFiles(TRUE);
-        IF mu = MU_FULL_DISABLE THEN SetDefaultCacheSize(0);
+        CASE mu OF
+        MU_FULL_DISABLE: BEGIN
+                SetDefaultCacheSize(0);
+                SetUseTempFiles(TRUE);
+                END;
+        MU_CACHE_ONLY: BEGIN
+                SetDefaultCacheSize(16);
+                SetUseTempFiles(TRUE);
+                END;
+        MU_FULL_ENABLE: SetDefaultCacheSize(8);
+        END;
 
         cmd := GetCmd(myArgs);
         bin_ss := bin_ss * 1024;
 
         FillChar(build_plan, SizeOf(IMAGE_BUILD_PLAN), #0);
-        ReWriteMemFile(build_plan.hdr);
+        IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
+                ReWriteTemp(build_plan.hdr);
+        END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
+                ReWriteMemFile(build_plan.hdr);
+        END;
         err := FALSE;
         arg_count := ArgsCount(myArgs);
         i := 1;
