@@ -22,7 +22,7 @@ SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-USES dos, system2, args, StrBin, rdffmt, rlo
+USES Dos, System2, Args, StrBin, rdffmt, rlo
         , rlocom
         , rlordf
         , rlomz
@@ -250,10 +250,10 @@ BEGIN
                 SetUseTempFiles(TRUE);
                 END;
         MU_CACHE_ONLY: BEGIN
-                SetDefaultCacheSize(16);
+                SetDefaultCacheSize(CACHE_PAGES_PER_FILE);
                 SetUseTempFiles(TRUE);
                 END;
-        MU_FULL_ENABLE: SetDefaultCacheSize(8);
+        MU_FULL_ENABLE: SetDefaultCacheSize(CACHE_PAGES_PER_FILE div 2);
         END;
 
         cmd := GetCmd(myArgs);
