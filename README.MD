@@ -28,7 +28,7 @@ Nasm works different with this files. So, I strongly advise to use
 
 # RLINK
 
-RLINK support EMS/XMS memory or can work with temporary files.
+RLINK can generate huge files. To speed up RLINK - point your TMP/TEMP directory to ramdrive.
 So, don't be confused with dos 16-bit application - RLINK known how to handle more then 64kb and 640kb :).
 
 ## Supported output formats
@@ -53,26 +53,6 @@ If you load code segment at ????:0000 - you don't need process relocations. And,
 If you need viewer for RDF, please visit to https://github.com/DosWorld/objview
 
 "Make" utility available at https://github.com/DosWorld/smallmake
-
-## Memory usage
-
-Memory using strategy could be changed with /emem=val parameter:
-
- | /emem | Memory used (per one file)                             |
- |:-----:|:-------------------------------------------------------|
- |   0   | Use temporary files, 16k buffer in conventional memory |
- |   1   | Use temp files, 16k buffer + 256k cache in EMS/XMS     |
- |   2   | No temp files, binary image will be build in EMS/XMS   |
-
-by default: emem is 1
-
-RLink will use many temporary files in process (1 for code segment, 1 for
-data segment, one more - for relocation data and header, etc).
-
-EMS/XMS have restriction - 64mb per one handler, RLink will allocate
-multiple handlers for one file, so 64mb is not a limit for binary image.
-
-Place for temporary files could be configured via TEMP, TMP env variables.
 
 # How to use
 
