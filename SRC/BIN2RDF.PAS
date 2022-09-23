@@ -34,9 +34,9 @@ BEGIN
         Reset(i);
         Assign(o, out);
         Rewrite(o);
-        ReWriteMemFile(hdr);
-        ReWriteMemFile(code);
-        ReWriteMemFile(data);
+        ReWriteTemp(hdr);
+        ReWriteTemp(code);
+        ReWriteTemp(data);
 
         IF IsOpen(i) AND IsOpen(o) AND IsOpen(hdr) AND IsOpen(code) AND IsOpen(data) THEN BEGIN
                 IF is_code THEN BlockCopy(i, code, FileSize(i))
@@ -96,7 +96,6 @@ BEGIN
         WriteArgsErrors(myArgs);
         IF ArgsError(myArgs) THEN Halt(1);
 
-        SetUseTempFiles(TRUE);
         arg_count := ArgsCount(myArgs);
         bin2rdf(GetArgsStr(myArgs, 1), outfname, entry_name, is_code);
 END.

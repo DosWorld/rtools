@@ -34,8 +34,6 @@ CONST
 REC_IN_PLAN = 64;
 
 TYPE
-MEM_USAGE = (MU_FULL_DISABLE,MU_CACHE_ONLY,MU_FULL_ENABLE);
-
 PRDFMETA = ^TRDFMETA;
 
 PLINK_EXPORT = ^TLINK_EXPORT;
@@ -115,7 +113,7 @@ FUNCTION DisableRecs(VAR hdr : BFILE; rtype : CHAR) : BOOLEAN;
 FUNCTION DisableRelocsWidth(VAR hdr : BFILE; width : BYTE) : BOOLEAN;
 PROCEDURE IncMem(VAR f : BFile; width : BYTE; ofs, value : DWORD);
 PROCEDURE SetMem(VAR f : BFile; width : BYTE; ofs, value : DWORD);
-FUNCTION MergeCodeDataBss(mu : MEM_USAGE; VAR src, dst : BFile; merge_bss : BOOLEAN) : BOOLEAN;
+FUNCTION MergeCodeDataBss(VAR src, dst : BFile; merge_bss : BOOLEAN) : BOOLEAN;
 
 FUNCTION FindImportInBuildPlan(import : PIMPORTS; name : RDFNAME; segnum : WORD) : BOOLEAN;
 FUNCTION FindExportRdf(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : PLINK_EXPORT;
@@ -126,7 +124,7 @@ FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME
 PROCEDURE FreeOutOfPlan(VAR build_plan : IMAGE_BUILD_PLAN);
 PROCEDURE DestroyPlan(VAR build_plan : IMAGE_BUILD_PLAN);
 
-FUNCTION LinkSmallModel(mu : MEM_USAGE; VAR build_plan : IMAGE_BUILD_PLAN) : BOOLEAN;
+FUNCTION LinkSmallModel(VAR build_plan : IMAGE_BUILD_PLAN) : BOOLEAN;
 
 IMPLEMENTATION
 
@@ -244,7 +242,7 @@ BEGIN
         END;
 END;
 
-FUNCTION MergeCodeDataBss(mu : MEM_USAGE; VAR src, dst : BFile; merge_bss : BOOLEAN) : BOOLEAN;
+FUNCTION MergeCodeDataBss(VAR src, dst : BFile; merge_bss : BOOLEAN) : BOOLEAN;
 VAR     new_headers : BFile;
         c           : STRING;
         rec         : RRELOC_REC;
@@ -277,15 +275,9 @@ BEGIN
 
         err := NOT (IsOpen(src) AND IsOpen(dst));
         IF NOT err THEN BEGIN
-                IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
-                        ReWriteTemp(hdr);
-                        ReWriteTemp(code);
-                        ReWriteTemp(data);
-                END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
-                        ReWriteMemFile(hdr);
-                        ReWriteMemFile(code);
-                        ReWriteMemFile(data);
-                END;
+                ReWriteTemp(hdr);
+                ReWriteTemp(code);
+                ReWriteTemp(data);
         END;
         err := err OR (NOT ReadRDF(src, hdr, code, data, code_segnum, data_segnum, bss_segnum));
 
@@ -299,7 +291,7 @@ BEGIN
                 data_size := FileSize(data);
                 bss_ofs := data_ofs + data_size;
 
-                ReWriteMemFile(new_headers);
+                ReWriteTemp(new_headers);
                 err := err OR (NOT IsOpen(new_headers));
         END;
 
@@ -616,7 +608,7 @@ BEGIN
         LookupImportByRSeg := import;
 END;
 
-FUNCTION LinkSmallModel(mu : MEM_USAGE; VAR build_plan : IMAGE_BUILD_PLAN) : BOOLEAN;
+FUNCTION LinkSmallModel(VAR build_plan : IMAGE_BUILD_PLAN) : BOOLEAN;
 VAR     err : BOOLEAN;
         i, new_headers, code, data : BFILE;
         code_segnum, data_segnum, bss_segnum : BYTE;
@@ -636,15 +628,9 @@ BEGIN
         bss_segnum := 2;
         bss_size := 0;
 
-        IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
-                ReWriteTemp(code);
-                ReWriteTemp(data);
-                ReWriteTemp(new_headers);
-        END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
-                ReWriteMemFile(code);
-                ReWriteMemFile(data);
-                ReWriteMemFile(new_headers);
-        END;
+        ReWriteTemp(code);
+        ReWriteTemp(data);
+        ReWriteTemp(new_headers);
         err := NOT (IsOpen(code) AND IsOpen(data) AND IsOpen(new_headers));
 
         r := build_plan.rdfs;

@@ -182,11 +182,10 @@ ARG_WINPE  = 'winpe';
 ARG_STACK  = 's';
 LIB_ENV    = 'RLIB';
 
-OPTIONS_DESC : ARRAY[0..14] OF TOPT = (
+OPTIONS_DESC : ARRAY[0..13] OF TOPT = (
 (name: ARG_OUTPUT; otype: OPTSTR;  help: 'Set output file name.'),
 (name: ARG_ORG;    otype: OPTSTR;  help: 'Set code start offset for COM output.'; default:'0x0100'),
 (name: ARG_ENTRY;  otype: OPTSTR;  help: 'Set entry-point name.'; default:'start'),
-(name: ARG_EMEM;   otype: OPTSTR;  help: 'Use EMS/XMS memory: 0=disable, 1=cache, 2=full image.'; default: '1'),
 (name: ARG_STACK;  otype: OPTSTR;  help: 'Set stack size in KB.'; default:'8'),
 (name: ARG_BSS;    otype: OPTBOOL; help: 'Reserve BSS-memory for COM/RDF output.'),
 (name: ARG_ZRDX;   otype: OPTBOOL; help: 'Bind ZRDX Dos-Extender to LE file.'),
@@ -214,8 +213,6 @@ VAR     myArgs        : TARGSTATE;
         err           : BOOLEAN;
         strict_import : BOOLEAN;
         rlib          : STRING;
-        emem          : STRING;
-        mu            : MEM_USAGE;
 BEGIN
         ArgsParse(myArgs, OPTIONS_DESC);
 
@@ -230,12 +227,6 @@ BEGIN
         IF NOT StrAsLong(str_org, bin_org) THEN SetArgsErr(myArgs, 'Bad code offset.');
         IF NOT StrAsLong(str_ss, bin_ss) THEN SetArgsErr(myArgs, 'Bad stack size.');
 
-        emem := GetOptStr(myArgs, ARG_EMEM);
-        IF emem = '0' THEN mu := MU_FULL_DISABLE
-        ELSE IF emem = '1' THEN mu := MU_CACHE_ONLY
-        ELSE IF emem = '2' THEN mu := MU_FULL_ENABLE
-        ELSE SetArgsErr(myArgs, 'Bad memory usage type parameter.');
-
         WriteArgsErrors(myArgs);
         IF ArgsError(myArgs) THEN Halt(1);
 
@@ -244,27 +235,11 @@ BEGIN
         System.Writeln('RLIB=', rlib);
         {$ENDIF}
 
-        CASE mu OF
-        MU_FULL_DISABLE: BEGIN
-                SetDefaultCacheSize(0);
-                SetUseTempFiles(TRUE);
-                END;
-        MU_CACHE_ONLY: BEGIN
-                SetDefaultCacheSize(CACHE_PAGES_PER_FILE);
-                SetUseTempFiles(TRUE);
-                END;
-        MU_FULL_ENABLE: SetDefaultCacheSize(CACHE_PAGES_PER_FILE div 2);
-        END;
-
         cmd := GetCmd(myArgs);
         bin_ss := bin_ss * 1024;
 
         FillChar(build_plan, SizeOf(IMAGE_BUILD_PLAN), #0);
-        IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
-                ReWriteTemp(build_plan.hdr);
-        END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
-                ReWriteMemFile(build_plan.hdr);
-        END;
+        ReWriteTemp(build_plan.hdr);
         err := FALSE;
         arg_count := ArgsCount(myArgs);
         i := 1;
@@ -282,54 +257,50 @@ BEGIN
         ReWrite(build_plan.linked_out);
         {$ENDIF}
         {$IFNDEF DEBUG}
-        IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
-                ReWriteTemp(build_plan.linked_out);
-        END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
-                ReWriteMemFile(build_plan.linked_out);
-        END;
+        ReWriteTemp(build_plan.linked_out);
         {$ENDIF}
         FreeOutOfPlan(build_plan);
         IF (NOT err) AND (cmd = ARG_MZL) THEN BEGIN
-                err := LinkAndGenMZL(mu, build_plan, entry_name, outfname, bin_ss);
+                err := LinkAndGenMZL(build_plan, entry_name, outfname, bin_ss);
                 DestroyPlan(build_plan);
         END ELSE IF (NOT err) AND (cmd = ARG_COM) THEN BEGIN
-                err := LinkSmallModel(mu, build_plan);
+                err := LinkSmallModel(build_plan);
                 DestroyPlan(build_plan);
-                IF NOT err THEN err := LinkAndGenCOM(mu, build_plan.linked_out
+                IF NOT err THEN err := LinkAndGenCOM(build_plan.linked_out
                         , bin_org
                         , entry_name
                         , outfname
                         , GetOptBool(myArgs, ARG_BSS));
         END ELSE IF (NOT err) AND (cmd = ARG_MZS) THEN BEGIN
-                err := LinkAndGenMZS(mu, build_plan
+                err := LinkAndGenMZS(build_plan
                         , entry_name
                         , outfname
                         , bin_ss);
                 DestroyPlan(build_plan);
         END ELSE IF (NOT err) AND (cmd = ARG_RDF) THEN BEGIN
-                err := LinkSmallModel(mu, build_plan);
+                err := LinkSmallModel(build_plan);
                 DestroyPlan(build_plan);
-                IF NOT err THEN err := LinkAndGenRDF(mu, build_plan.linked_out
+                IF NOT err THEN err := LinkAndGenRDF(build_plan.linked_out
                         , outfname
                         , GetOptBool(myArgs, ARG_BSS));
         END ELSE IF (NOT err) AND (cmd = ARG_ADAM) THEN BEGIN
-                err := LinkSmallModel(mu, build_plan);
+                err := LinkSmallModel(build_plan);
                 DestroyPlan(build_plan);
-                IF NOT err THEN err := LinkAndGenAdam(mu, build_plan.linked_out
+                IF NOT err THEN err := LinkAndGenAdam(build_plan.linked_out
                         , entry_name
                         , outfname
                         , bin_ss);
         END ELSE IF (NOT err) AND (cmd = ARG_LE) THEN BEGIN
-                err := LinkSmallModel(mu, build_plan);
+                err := LinkSmallModel(build_plan);
                 DestroyPlan(build_plan);
-                IF NOT err THEN err := LinkAndGenLE(mu, build_plan.linked_out
+                IF NOT err THEN err := LinkAndGenLE(build_plan.linked_out
                         , entry_name
                         , outfname
                         , bin_ss, GetOptBool(myArgs, ARG_ZRDX));
         END ELSE IF (NOT err) AND (cmd = ARG_DOSPE) THEN BEGIN
-                err := LinkSmallModel(mu, build_plan);
+                err := LinkSmallModel(build_plan);
                 DestroyPlan(build_plan);
-                IF NOT err THEN err := LinkAndGenDosPE(mu, build_plan.linked_out
+                IF NOT err THEN err := LinkAndGenDosPE(build_plan.linked_out
                         , entry_name
                         , outfname
                         , bin_ss, GetOptBool(myArgs, ARG_HX));

@@ -30,7 +30,7 @@ INTERFACE
 
 USES system2, rdffmt, rlo;
 
-FUNCTION LinkAndGenAdam(mu : MEM_USAGE; VAR input : BFILE;
+FUNCTION LinkAndGenAdam(VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size : LONGINT) : BOOLEAN;
@@ -39,7 +39,7 @@ IMPLEMENTATION
 
 USES exe;
 
-FUNCTION LinkAndGenAdam(mu : MEM_USAGE; VAR input : BFILE;
+FUNCTION LinkAndGenAdam(VAR input : BFILE;
         entry_name : RDFNAME;
         outfname : STRING;
         stack_size: LONGINT) : BOOLEAN;
@@ -90,20 +90,13 @@ BEGIN
         err := err OR (NOT (IsOpen(input) AND IsOpen(o)));
 
         IF NOT err THEN BEGIN
-                IF (mu = MU_FULL_DISABLE) OR (mu = MU_CACHE_ONLY) THEN BEGIN
-                        ReWriteTemp(hdr);
-                        ReWriteTemp(code);
-                        ReWriteTemp(data);
-                        ReWriteTemp(i);
-                END ELSE IF mu = MU_FULL_ENABLE THEN BEGIN
-                        ReWriteMemFile(hdr);
-                        ReWriteMemFile(code);
-                        ReWriteMemFile(data);
-                        ReWriteMemFile(i);
-                END;
+                ReWriteTemp(hdr);
+                ReWriteTemp(code);
+                ReWriteTemp(data);
+                ReWriteTemp(i);
         END;
 
-        IF NOT err THEN err := err OR MergeCodeDataBss(mu, input, i, FALSE);
+        IF NOT err THEN err := err OR MergeCodeDataBss(input, i, FALSE);
         Seek(i, 0);
         err := err OR (NOT ReadRDF(i, hdr, code, data, code_segnum, data_segnum, bss_segnum));
 

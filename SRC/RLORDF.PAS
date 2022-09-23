@@ -30,11 +30,11 @@ INTERFACE
 
 USES system2, rdffmt, rlo;
 
-FUNCTION LinkAndGenRDF(mu : MEM_USAGE; VAR input : BFILE; outfname : STRING; reserv_bss : BOOLEAN) : BOOLEAN;
+FUNCTION LinkAndGenRDF(VAR input : BFILE; outfname : STRING; reserv_bss : BOOLEAN) : BOOLEAN;
 
 IMPLEMENTATION
 
-FUNCTION LinkAndGenRDF(mu : MEM_USAGE; VAR input : BFILE; outfname : STRING; reserv_bss : BOOLEAN) : BOOLEAN;
+FUNCTION LinkAndGenRDF(VAR input : BFILE; outfname : STRING; reserv_bss : BOOLEAN) : BOOLEAN;
 VAR     o           : BFILE;
         err         : BOOLEAN;
 BEGIN
@@ -42,7 +42,7 @@ BEGIN
         ReWrite(o);
         err := NOT IsOpen(o);
         IF NOT err THEN BEGIN
-                err := MergeCodeDataBss(mu, input, o, reserv_bss);
+                err := MergeCodeDataBss(input, o, reserv_bss);
 {$IFNDEF DEBUG}
                 IF err THEN SetDeleteOnClose(o, TRUE);
 {$ENDIF}
