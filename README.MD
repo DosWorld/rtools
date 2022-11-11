@@ -4,7 +4,7 @@ This is MS-DOS tools for linking `RDF`/`RDL` files.
 While playing with small compilers, I noticed one problem for all beginners.
 It lacks runtime-libraries and linkers support.
 
-I researched the OBJ/OMF format and found it too complicated.
+I investigate the OBJ/OMF format and found it too complicated.
 AOUTB has no segment memory support. COFF and ELF are also complex
 and solve problems non-relevant to MS-DOS.
 
@@ -42,7 +42,7 @@ So, don't be confused with dos 16-bit application - RLINK known how to handle mo
 * RDF - Linked rdf into one code-segment (like a .com, but with zero offset and name). Could be used as DLL.
 If you load code segment at ????:0000 - you don't need process relocations. And, as bonus, you can use symbol table.
 
-## Buitin stubs and extenders
+## Builtin stubs and extenders
 
 * Simple stub (will write something like "This is dpmi exe!"). Can be used with HX-DOS Extender or with LX format
  (if you want bind other DOS-Extender).
