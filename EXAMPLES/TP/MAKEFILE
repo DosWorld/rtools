@@ -1,0 +1,13 @@
+all: main.exe test.rdf
+
+main.exe: main.pas rdfload.pas
+        tpc /m main.pas
+
+test.rdf: test.asm
+        nasm -f rdf test.asm
+
+clean:
+        del *.bak
+        del *.rdf
+        del *.exe
+        del *.tpu
