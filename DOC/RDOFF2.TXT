@@ -1,7 +1,6 @@
-# RDOFF2 (Relocatable Data Object File Format)
+# RDOFF2 (Relocatable Data Object File Format) & RDL (RDOFF Library)
 
-## Reference Specification
-**Version:** 2.2 (Revised)
+**Specification Version:** 2.2 (Revised & Corrected)
 **Architecture:** x86 (16-bit / 32-bit agnostic)
 **Byte Order:** Little-Endian
 **String Encoding:** ASCII (Null-terminated)
@@ -10,60 +9,53 @@
 
 ## 1. Introduction
 
-RDOFF2 (RDF) is a simple, relocatable object file format used primarily
-by the NASM assembler. It is designed to support multi-module linking,
-exporting and importing symbols, and segment relocations. It is structurally
-composed of a main header, a flexible metadata record section, and a raw data
-segment section.
+RDOFF2 (RDF) is a simplified, relocatable object file format used primarily by the NASM assembler. It supports multi-module linking, symbol export/import, and segment relocation.
 
-## 2. File Structure
+The format consists of two distinct file types:
+1.  **RDF (Object File):** Contains code, data, and relocation metadata for a single compilation unit.
+2.  **RDL (Library File):** A container format (archive) holding multiple RDF files.
 
-The file is strictly sequential.
+---
 
-| Offset | Field Name  | Size      | Description                     |
-|--------|-------------|-----------|---------------------------------|
-|  0000  | Signature   | 6         | Magic string: `'RDOFF2'`        |
-|  0006  | Module Size | 4 (DWORD) | Total size of the file in bytes |
-|  000A  | Header Size | 4 (DWORD) | Length of the Header Records    |
-|        |             |           | section (starts at `0x0E`).     |
-|  000E  | Records     | Variable  | Sequence of metadata records    |
-|        |             |           | (Relocations, Imports, Exports) |
-|        | Segments    | Variable  | Sequence of raw segment data    |
-|        |             |           | blocks.                         |
+## 2. RDF File Structure
+
+The RDF file is strictly sequential. All multi-byte integers are stored in Little-Endian format.
+
+| Offset | Field Name  | Size      | Description |
+|--------|-------------|-----------|-------------|
+|  0000  | Signature   | 6         | Magic string: `'RDOFF2'` |
+|  0006  | Module Size | 4 (DWORD) | Total size of the file in bytes. |
+|  000A  | Header Size | 4 (DWORD) | Length of the **Header Records** section (starts at `0x0E`). |
+|  000E  | Records     | Variable  | Sequence of metadata records (Relocations, Imports, Exports). |
+|  ...   | Segments    | Variable  | Sequence of raw segment data blocks. Starts immediately after Records. |
 
 ---
 
 ## 3. Header Records
 
-The "Header" section contains a list of records. Each record instructs
-the linker to perform an action (patch memory, define a symbol, reserve BSS).
+The "Header" section contains a list of variable-length records. Each record instructs the linker to perform an action (patch memory, define a symbol, reserve BSS).
 
 ### 3.1. Generic Record Structure
 
 Every record begins with a 2-byte preamble:
 
-| Offset | Type  | Description                                      |
-|--------|-------|--------------------------------------------------|
-|   +0   | Byte  | Record Type ID (See Table 3.2)                   |
-|   +1   | Byte  | Record Length (Length of the data following this |
-|        |       | byte). Total size = Length + 2.                  |
-|   +2   | Bytes | Record Data (Payload)                            |
+| Offset | Type  | Description |
+|--------|-------|-------------|
+|   +0   | Byte  | **Record Type ID** (See Table 3.2). |
+|   +1   | Byte  | **Record Length**. The number of bytes of data *following* this byte. <br>Total Record Size = `Length + 2`. |
+|   +2   | Bytes | **Record Data** (Payload). |
 
 ### 3.2. Record Types Summary
 
-| ID | Constant Name   | Description                                 |
-|----|-----------------|---------------------------------------------|
-|  1 | RDFREC_RELOC    | Apply a fixup (patch) to code or data.      |
-|  2 | RDFREC_IMPORT   | Declare an external symbol required by this |
-|    |                 | module.                                     |
-|  3 | RDFREC_GLOBAL   | Declare a public symbol provided by this    |
-|    |                 | module.                                     |
-|  4 | RDFREC_DLL      | Declare dependency on a dynamic library     |
-|    |                 | (ignored in static linking).                |
-|  5 | RDFREC_BSS      | Request uninitialized memory reservation.   |
-|  6 | RDFREC_SEGRELOC | Patch a location with a Segment Base        |
-|    |                 | Address (Selector).                         |
-|  8 | RDFREC_MODNAME  | Name of the module (metadata).              |
+| ID | Constant Name   | Description |
+|----|-----------------|-------------|
+|  1 | RDFREC_RELOC    | Apply a fixup (patch) to code or data. |
+|  2 | RDFREC_IMPORT   | Declare an external symbol required by this module. |
+|  3 | RDFREC_GLOBAL   | Declare a public symbol provided by this module. |
+|  4 | RDFREC_DLL      | Declare dependency on a dynamic library (ignored in static linking). |
+|  5 | RDFREC_BSS      | Request uninitialized memory reservation. |
+|  6 | RDFREC_SEGRELOC | Patch a location with a Segment Base Address. |
+|  8 | RDFREC_MODNAME  | Name of the module (metadata). |
 
 ---
 
@@ -73,200 +65,165 @@ Every record begins with a 2-byte preamble:
 
 Used to modify a pointer within the module's code or data segments.
 
-| Offset | Type  | Description                                |
-|--------|-------|--------------------------------------------|
-|   +0   | Byte  | Segment/Flags:                             |
-|        |       | Bit 6 (0x40): Relative Flag. If set, the   |
-|        |       | relocation is PC-relative (e.g., CALL,     |
-|        |       | JMP).                                      |
-|        |       | Bits 0-5:Physical Segment Index containing |
-|        |       | the code to patch (0 = Code, 1 = Data).    |
-|   +1   | DWORD | Offset. The location within the segment to |
-|        |       | apply the patch.                           |
-|   +5   | Byte  | Width. Size of the patch in bytes.         |
-|        |       | Valid values: 1, 2, 4.                     |
-|   +6   | Word  | Reference Segment (RSEG).                  |
-|        |       | Values 0-2: 0=Code, 1=Data, 2=BSS.         |
-|        |       | Values >2: (Matches RDFREC_IMPORT SegID).  |
+| Offset | Type  | Description |
+|--------|-------|-------------|
+|   +0   | Byte  | **Flags / Physical Segment**: <br> **Bit 6 (0x40):** Relative Flag. If set, the relocation is PC-relative. <br> **Bits 0-5:** Physical Segment Index containing the code to patch (0 = Code, 1 = Data). |
+|   +1   | DWORD | **Offset**. The location within the segment to apply the patch. |
+|   +5   | Byte  | **Width**. Size of the patch in bytes. Valid values: 1, 2, 4. |
+|   +6   | Word  | **Reference Segment (RSEG)**. <br> `0`: Code Segment <br> `1`: Data Segment <br> `2`: BSS <br> `>2`: **Import ID** (Matches `RDFREC_IMPORT` Segment ID). |
 
-Linking Logic:
+**Linking Logic:**
 
-Absolute: `Location += Target_Address`
-Relative: `Location += Target_Address - Module_Base_Address`
+1.  **Absolute (Flag 0x40 unset):**
+    `*Patch_Location += Target_Symbol_Address`
+    *The value already present at `Patch_Location` (the addend) is added to the absolute address of the target.*
 
-Note: The assembler usually calculates the offset relative to
-the start of the section. The linker must adjust for where
-the module is placed in the final executable.
+2.  **Relative (Flag 0x40 set):**
+    `*Patch_Location += Target_Symbol_Address - Module_Base_Address`
+    
+    > **Critical Note on Relative Relocations:**
+    > The formula above calculates the distance from the start of the module to the target. However, x86 relative jumps (`CALL`, `JMP`) are relative to the *end* of the instruction (`EIP`).
+    > To compensate for this, the **Assembler** must pre-calculate a negative addend and store it at `*Patch_Location`.
+    > The stored addend is typically: `-(Offset_Of_Patch + Patch_Width)`.
 
 #### Type 2: RDFREC_IMPORT
 
-Defines a symbol that is not present in this file but will be
-provided by another file at link time.
+Defines a symbol that is not present in this file but will be provided by another file at link time.
 
-| Offset | Type   | Description                                |
-|--------|--------|--------------------------------------------|
-|   +0   | Byte   | Flags. Usually 0.                          |
-|   +1   | Word   | Segment ID. A 16-bit internal identifier   |
-|        |        | assigned to this import. **(Critical: This |
-|        |        | is 2 bytes).                               |
-|   +3   | String | Name. ASCIIZ (Null-terminated) string.     |
+| Offset | Type   | Description |
+|--------|--------|-------------|
+|   +0   | Byte   | **Flags**. Usually 0. |
+|   +1   | Word   | **Segment ID**. A 16-bit unique internal identifier assigned to this import. <br>**Note:** This is strictly **2 bytes**, unlike the Segment ID in GLOBAL records. |
+|   +3   | String | **Name**. ASCIIZ (Null-terminated) string. |
 
-Linking Logic:
-
-The Linker builds a map:
-`ImportID -> SymbolName`. When a `RELOC` record refers to
-`RSEG = ImportID`, the linker looks up the symbol's final address.
+**Linking Logic:**
+The Linker builds a map: `ImportID -> Symbol_Final_Address`. When a `RELOC` record refers to `RSEG = ImportID`, the linker applies the address of this symbol.
 
 #### Type 3: RDFREC_GLOBAL
 
 Defines a symbol inside this file that can be used by other files.
 
-| Offset | Type   | Description                                |
-|--------|--------|--------------------------------------------|
-|   +0   | Byte   | Flags. `0x01` = Global/Exported.           |
-|   +1   | Byte   | Segment ID. The physical segment where the |
-|        |        | symbol lives (0=Code, 1=Data, 2=BSS).      |
-|        |        | (Critical: This is 1 byte).                |
-|   +2   | DWORD  | Offset. The offset of the symbol from the  |
-|        |        | start of its segment.                      |
-|   +6   | String | Name. ASCIIZ string.                       |
-
-Linking Logic:
-
-The Linker registers `SymbolName` with address
-`Base_Address_of_Module + Offset`.
+| Offset | Type   | Description |
+|--------|--------|-------------|
+|   +0   | Byte   | **Flags**. `0x01` = Global/Exported. |
+|   +1   | Byte   | **Segment ID**. The physical segment where the symbol lives (0=Code, 1=Data, 2=BSS). <br>**Note:** This is strictly **1 byte**. |
+|   +2   | DWORD  | **Offset**. The offset of the symbol from the start of its segment. |
+|   +6   | String | **Name**. ASCIIZ string. |
 
 #### Type 5: RDFREC_BSS
 
 Declares how much uninitialized memory (BSS) the module needs.
 
-| Offset | Type  | Description                         |
-|--------|-------|-------------------------------------|
-|   +0   | DWORD | Amount. Number of bytes to reserve. |
-
-Linking Logic:
-
-RDOFF2 files do not store BSS data. The linker sums all BSS records
-from all modules. In the final executable, this space is logically
-appended after the Data segment.
+| Offset | Type  | Description |
+|--------|-------|-------------|
+|   +0   | DWORD | **Amount**. Number of bytes to reserve. |
 
 #### Type 6: RDFREC_SEGRELOC
 
-Used when code needs to know the Segment Selector or Paragraph Address
-(e.g., `mov ax, seg data_label` or `mov ds, ax`).
+Used when code needs to know the Segment Selector or Paragraph Address (e.g., `mov ax, seg data_label`).
 
-| Offset | Type  | Description                           | 
-|--------|-------|---------------------------------------|
-|   +0   | Byte  | Segment Index (0=Code, 1=Data, 2=BSS) |
-|        |       | where the patch is applied.           |
-|   +1   | DWORD | Offset. Location to patch.            |
-|   +5   | Byte  | Width. Usually 2 (16-bit segment      |
-|        |       | register).                            |
-|   +6   | Word  | Reference Segment (RSEG). The target  |
-|        |       | segment whose base address is needed. |
-
-Linking Logic (Small Model MZ):
-
-* If `RSEG` targets Code: Patch value is `0` (relative to CS).
-* If `RSEG` targets Data/BSS: Patch value is `Total_Code_Size / 16`.
-
-Note: This requires the Code segment to be aligned to a 16-byte boundary.
+| Offset | Type  | Description |
+|--------|-------|-------------|
+|   +0   | Byte  | **Segment Index**. Physical segment (0/1) to patch. |
+|   +1   | DWORD | **Offset**. Location to patch. |
+|   +5   | Byte  | **Width**. Usually 2 (16-bit segment register). |
+|   +6   | Word  | **Reference Segment**. The target segment whose base is needed. |
 
 ---
 
 ## 4. Segments Structure
 
-Immediately following the Header Records (at offset
-`0x0E + HeaderSize`), the file contains the raw content of the segments.
+Immediately following the Header Records (at offset `0x0E + HeaderSize`), the file contains the raw content of the segments.
 
-Segment Header:
+**Segment Header:**
 
-| Offset | Type  | Description                                 |
-|--------|-------|---------------------------------------------|
-|   +0   | Word  | Type. 1=Code, 2=Data. 0=EOF (End of File).  |
-|   +2   | Word  | Number. Segment Index (0, 1, ...).          |
-|   +4   | Word  | Reserved. Ignored.                          |
-|   +6   | DWORD | Length. Size of the following data in bytes |
-|   +10  | Bytes | Content. Raw binary data.                   |
+| Offset | Type  | Description |
+|--------|-------|-------------|
+|   +0   | Word  | **Type**. <br> `0` = EOF (End of File)<br> `1` = Code<br> `2` = Data |
+|   +2   | Word  | **Number**. Segment Index (0, 1). |
+|   +4   | Word  | **Reserved**. Should be 0. |
+|   +6   | DWORD | **Length**. Size of the following data in bytes. |
+|   +10  | Bytes | **Content**. Raw binary data (`Length` bytes). |
 
-Scanning Logic:
-
-The linker must read segments sequentially. It reads the header,
-processes the `Length` bytes of content, and then expects the next
-Segment Header immediately after. A Type of `0` indicates no more
-segments.
+**Scanning Logic:**
+The linker reads segments sequentially. After reading `Length` bytes of content, it expects the next Segment Header immediately. The file ends when a Segment Header with **Type 0** is encountered.
 
 ---
 
-## 5. Implementation Notes (Small Model Linking)
+## 5. Implementation Standards (Small Model)
 
-When linking multiple RDOFF2 files into a standard 16-bit DOS `.EXE`
-(Small Model), the following rules apply:
+When linking RDOFF2 files into a 16-bit DOS `.EXE` (Small Model), the following rules apply:
 
 ### 5.1. Memory Layout
-
-The linker merges sections from all input modules into two large blocks:
-1.  Code Block (CS): `Module1_Code` + `Module2_Code` + ...
-2.  Data Block (DS): `Module1_Data` + `Module2_Data` + ... + `Total_BSS`
+1.  **Code Block (CS):** Concatenation of all Code segments (Type 1).
+2.  **Data Block (DS):** Concatenation of all Data segments (Type 2) + Total BSS.
 
 ### 5.2. Alignment
+*   **CS/DS Boundary:** In Small Model, the Data Block must start at a 16-byte (paragraph) boundary relative to the start of the Code Block. The linker must zero-pad the Code section of each module to ensure alignment if necessary.
 
-* Critical: Each module's Code chunk must be padded with zeros (or NOPs)
-to the next 16-byte (paragraph) boundary.
-* Reason: In Small Model, `DS` points to the start of the Data Block.
-Since `DS` is a segment register, the Data Block must start exactly at a
-paragraph boundary relative to `CS`.
-* Calculation: `DS_Value = CS_Value + (Total_Code_Length / 16)`.
+### 5.3. Address Calculation Formula
+Assuming `PatchAddr` is the pointer in the final binary to be modified:
 
-### 5.3. Symbol Resolution
+*   **Import (External) Reference:**
+    `Value = *PatchAddr + Symbol_Absolute_Address`
 
-1.Phase 1 (Scan):
- * Assign a **Base Address** to every module.
- * `Mod1_Base = 0`.
- * `Mod2_Base = Mod1_Base + Aligned(Mod1_Size)`.
- * Load all `GLOBAL` symbols into a table. The absolute address of a symbol is `Module_Base + Symbol_Offset`.
+*   **Relative Import (External) Reference:**
+    `Value = *PatchAddr + Symbol_Absolute_Address - Module_Base_Address`
+    *(Where `*PatchAddr` is the negative addend placed by the assembler, as described in Section 3.3).*
 
-2. Phase 2 (Link):
- * Process `IMPORT` records to build a mapping `Local_ID -> Symbol_Name`.
- * Process `RELOC` records. Look up imports.
- * Apply patches to the raw code/data buffers.
-
-### 5.4. Relocation Formulas (16-bit)
-
-Assuming `PatchAddr` is the absolute offset in the final merged segment:
-
-* Internal Ref (Code/Data):
-`Value += Module_Base_Offset`
-
-* External Ref (Import):
-`Value += Symbol_Absolute_Address`
-
-* Relative Internal (CALL/JMP):
-`Value += Target_Absolute_Address - Source_Module_Base_Address`
-
-* Relative External:**
-`Value += Symbol_Absolute_Address - Source_Module_Base_Adress`
+### 5.4. Reserved Segment IDs
+*   **0**: Code Segment (Physical)
+*   **1**: Data Segment (Physical)
+*   **2**: BSS (Virtual). Symbols in BSS are resolved as: `Total_Data_Size + Offset_In_BSS`.
+*   **>=3**: Dynamically assigned Import IDs.
 
 ---
 
-## 6. Binary Anomaly Notes (The "Gotchas")
+## 6. RDOFF Library Format (RDL)
 
-These specific behaviors were identified via binary analysis of NASM output:
+The RDL format (identified by the signature `'RDLIB2'`) is a simple, sequential archive format used to bundle multiple RDOFF2 object files into a single library file. It functions similarly to a simplified `tar` archive.
 
-1.Import vs Global ID Size:
-* IMPORT records use **2 bytes** for the Segment ID field.
-* GLOBAL records use **1 byte** for the Segment ID field.
-* Failure to observe this desynchronizes the file pointer.
+### 6.1. File Header
 
-2. 32-bit Relocations in 16-bit Mode:
-* NASM often generates `RELOC` records with `WIDTH = 4` (32-bit) even
-for 16-bit targets.
-* Linker Safety: A 16-bit linker **must** truncate these writes
-to 2 bytes (Word) if the target architecture cannot handle 32-bit writes
-without overwriting adjacent instructions (e.g., corrupting the next opcode).
+The file begins with a global signature.
 
-3. BSS Indexing:
-* BSS does not exist physically. However, `RELOC` records refer to
-it using Segment ID `2` (assuming Code=0, Data=1).
-* If a symbol is in BSS, its address calculation is:
-`Total_Data_Size + Symbol_Offset_In_BSS` (relative to DS).
+| Offset | Field Name | Size | Description |
+|---|---|---|---|
+| 0000 | Signature | 6 | Magic string: `'RDLIB2'` |
+
+### 6.2. Library Entries
+
+Immediately following the signature, the file consists of a sequence of **Module Entries**. There is no central directory; the file must be read sequentially from start to finish.
+
+**Structure of a Single Entry:**
+
+| Offset | Field Name | Size | Description |
+|---|---|---|---|
+| +0 | Name | Variable | **ASCIIZ String**. The name of the module (e.g., `math.obj`), terminated by a null byte (`0x00`). |
+| +Var | Content Size | 4 (DWORD) | The size of the module data in bytes ($N$). |
+| +Var+4 | Content | $N$ Bytes | The raw binary content of the module (typically a complete RDOFF2 file). |
+
+### 6.3. Special Entries (The `.sig` Block)
+
+By convention, RDL files generated by standard tools include a metadata block as the **first entry** in the library.
+
+*   **Name:** `'.sig'` (plus null terminator).
+*   **Size:** 4 bytes.
+*   **Content:** 4 null bytes (`0x00000000`).
+
+**Linker Behavior:**
+When iterating through the library, the linker **must** check the first character of the `Name` field.
+*   If `Name` starts with a dot (`.`) (e.g., `.sig`), the entry is considered internal metadata and **must be skipped**.
+*   The skip logic is: `Next_Entry_Offset = Current_File_Pos + Content_Size`.
+
+### 6.4. Parsing Algorithm
+
+To read an RDL file:
+1.  Verify the `'RDLIB2'` signature.
+2.  Loop while not End-Of-File:
+    a.  Read string at current position until `0x00` is found (`ModuleName`).
+    b.  Read the next 4 bytes as `DataSize` (DWORD).
+    c.  If `ModuleName` starts with `.` (dot), `Seek` forward by `DataSize`.
+    d.  Else, process `DataSize` bytes as a valid RDOFF2 object file.
+    e.  Repeat.
+
