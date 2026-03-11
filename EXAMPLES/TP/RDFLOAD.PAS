@@ -32,18 +32,20 @@ TExportSym = Record
         Next: PExportSym;
 End;
 
+PRDFModule = ^TRDFModule;
 TRDFModule = Record
         CodeBase: Pointer;
         DataBase: Pointer;
         CodeSize: Word;
         DataSize: Word;
         DataRawSize: Word;
-        Exports: PExportSym;
+        Exports : PExportSym;
+        Next    : PRDFModule;
 End;
 
-Function Load(FileName: String; Var Module: TRDFModule): Boolean;
-Function Find(Var Module: TRDFModule; Name: String): Pointer;
-Procedure Free(Var Module: TRDFModule);
+Function LoadLibrary(const FileName: String) : PRDFModule;
+Function GetProcAddress(Module: PRDFModule; const Name: String): Pointer;
+Procedure FreeLibrary(Module: PRDFModule);
 
 Implementation
 
@@ -54,20 +56,20 @@ REC_BSS      = 5;
 REC_SEGRELOC = 6;
 
 Type
-TRDFHeader = packed Record
+TRDFHeader = Record
         Sign: array[0..5] Of Char;
         ModSize: LongInt;
         HeadSize: LongInt;
 End;
 
-TSegHeader = packed Record
+TSegHeader = Record
         SegType: Word;
         SegNum: Word;
         Reserved: Word;
         Length: LongInt;
 End;
 
-TRecHeader = packed Record
+TRecHeader = Record
         RecType: Byte;
         RecLen: Byte;
 End;
@@ -213,81 +215,79 @@ Begin
     End;
 End;
 
-Function Load(FileName: String; Var Module: TRDFModule): Boolean;
+Function LoadLibrary(const FileName: String) : PRDFModule;
 Var     F: File;
         Hdr: TRDFHeader;
         RecStart, SegStart: LongInt;
         RCSize, RDSize, RBSize: LongInt;
         i : integer;
+        Module: PRDFModule;
 Begin
-        Load := False;
-        FillChar(Module, SizeOf(Module), 0);
+        Module := Nil;
+        LoadLibrary := Nil;
         Assign(F, FileName);
         Reset(F, 1); {$I-} i := IOResult; {$I+}
         If i <> 0 Then Exit;
-
         BlockRead(F, Hdr, SizeOf(Hdr));
         If Hdr.Sign <> 'RDOFF2' Then Begin
                 Close(F);
                 Exit;
         End;
-
         RecStart := FilePos(F);
         SegStart := RecStart + Hdr.HeadSize;
         RBSize := GetBSSSize(F, RecStart, SegStart);
         ScanSegments(F, SegStart, RCSize, RDSize);
-
         If (RCSize > 65520) Or ((RDSize + RBSize) > 65520) Then Begin
                 Close(F);
                 Exit;
         End;
+        New(Module);
+        FillChar(Module^, SizeOf(TRDFModule), 0);
+        Module^.CodeSize := Align2(Word(RCSize));
+        Module^.DataSize := Align2(Word(RDSize + RBSize));
+        Module^.DataRawSize := Word(RDSize);
 
-        Module.CodeSize := Align2(Word(RCSize));
-        Module.DataSize := Align2(Word(RDSize + RBSize));
-        Module.DataRawSize := Word(RDSize);
-
-        If Module.CodeSize > 0 Then GetMem(Module.CodeBase, Module.CodeSize);
-        If Module.DataSize > 0 Then Begin
-                GetMem(Module.DataBase, Module.DataSize);
-                FillChar(Module.DataBase^, Module.DataSize, 0);
+        If Module^.CodeSize > 0 Then GetMem(Module^.CodeBase, Module^.CodeSize);
+        If Module^.DataSize > 0 Then Begin
+                GetMem(Module^.DataBase, Module^.DataSize);
+                FillChar(Module^.DataBase^, Module^.DataSize, 0);
         End;
 
-        LoadSegmentData(F, SegStart, Module);
-        ApplyRecords(F, RecStart, SegStart, Module);
+        LoadSegmentData(F, SegStart, Module^);
+        ApplyRecords(F, RecStart, SegStart, Module^);
 
         Close(F);
-        Load := True;
+        LoadLibrary := Module;
 End;
 
-Function Find(Var Module: TRDFModule; Name: String): Pointer;
+Function GetProcAddress(Module: PRDFModule; const Name: String): Pointer;
 Var     Current: PExportSym;
 Begin
-        Current := Module.Exports;
+        Current := Module^.Exports;
         While Current <> Nil Do Begin
                 If Current^.Name = Name Then Begin
-                        Find := Current^.Addr;
+                        GetProcAddress := Current^.Addr;
                         Exit;
                 End;
                 Current := Current^.Next;
         End;
-        Find := Nil;
+        GetProcAddress := Nil;
 End;
 
-Procedure Free(Var Module: TRDFModule);
-Var     Temp, Next: PExportSym;
+Procedure FreeLibrary(Module: PRDFModule);
+Var     Next: PExportSym;
 Begin
-        Temp := Module.Exports;
-        While Temp <> Nil Do Begin
-                Next := Temp^.Next;
-                Dispose(Temp);
-                Temp := Next;
+        if Module = Nil then Exit;
+        While Module^.Exports <> Nil Do Begin
+                Next := Module^.Exports^.Next;
+                Dispose(Module^.Exports);
+                Module^.Exports := Next;
         End;
-        Module.Exports := Nil;
-        If (Module.CodeSize > 0) And (Module.CodeBase <> Nil) Then
-                FreeMem(Module.CodeBase, Module.CodeSize);
-        If (Module.DataSize > 0) And (Module.DataBase <> Nil) Then
-                FreeMem(Module.DataBase, Module.DataSize);
-        FillChar(Module, SizeOf(Module), 0);
+        If (Module^.CodeSize > 0) And (Module^.CodeBase <> Nil) Then
+                FreeMem(Module^.CodeBase, Module^.CodeSize);
+        If (Module^.DataSize > 0) And (Module^.DataBase <> Nil) Then
+                FreeMem(Module^.DataBase, Module^.DataSize);
+        Dispose(Module);
 End;
 
 End.

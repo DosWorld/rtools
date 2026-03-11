@@ -3,7 +3,7 @@ GLOBAL print_msg
 
 SECTION .data
     db 'Z'
-msg db 'Hello from Linked Module!$'
+msg db 'Hello from external library!$'
 
 SECTION .text
 print_msg:
