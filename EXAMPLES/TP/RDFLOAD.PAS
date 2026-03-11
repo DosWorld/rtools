@@ -151,68 +151,51 @@ Var     H: TRecHeader;
         PatchVal: Word;
         NewSym: PExportSym;
 Begin
-  Seek(F, StartPos);
-  While FilePos(F) < EndPos Do Begin
-      BlockRead(F, H, SizeOf(H));
-      If H.RecLen > 0 Then BlockRead(F, Buf, H.RecLen);
-      Case H.RecType Of 
-        REC_RELOC, REC_SEGRELOC:
-                                 Begin
-                                   RelFlags := Buf[0];
-                                   Move(Buf[1], RelOffset, 4);
-                                   RelWidth := Buf[5];
-                                   Move(Buf[6], RelRSeg, 2);
-
-                                   If (RelFlags And $0F) = 0 Then BaseAddr := Modul.CodeBase
-                                   Else BaseAddr := Modul.DataBase;
-
-                                   PatchAddr := Ptr(Seg(BaseAddr^), Ofs(BaseAddr^) + Word(RelOffset)
-                                                );
-
-                                   If RelRSeg = 0 Then TargetPtr := Modul.CodeBase
-                                   Else If RelRSeg = 1 Then TargetPtr := Modul.DataBase
-                                   Else If RelRSeg = 2 Then TargetPtr := Ptr(Seg(Modul.DataBase^),
-                                                                         Ofs(Modul.DataBase^) +
-                                                                         Modul.DataRawSize)
-                                   Else TargetPtr := Modul.DataBase;
-
-                                   If H.RecType = REC_RELOC Then
-                                     Begin
-                                       If RelWidth = 2 Then
-                                         Begin
-                                           PatchVal := Ofs(TargetPtr^);
-                                           Inc(Word(PatchAddr^), PatchVal);
-                                         End;
-                                     End
-                                   Else
-                                     Begin
-                                       If RelWidth = 2 Then
-                                         Word(PatchAddr^) := Seg(TargetPtr^);
-                                     End;
-                                 End;
-
-        REC_GLOBAL:
-                    Begin
-                      GSegID := Buf[1];
-                      Move(Buf[2], GOffset, 4);
-
-                      New(NewSym);
-                      NewSym^.Name := ExtractString(Buf, 6, H.RecLen);
-                      NewSym^.Next := Modul.Exports;
-                      Modul.Exports := NewSym;
-
-                      If GSegID = 0 Then
-                        NewSym^.Addr := Ptr(Seg(Modul.CodeBase^), Ofs(Modul.CodeBase^) + Word(
-                                        GOffset))
-                      Else If GSegID = 2 Then
-                             NewSym^.Addr := Ptr(Seg(Modul.DataBase^), Ofs(Modul.DataBase^) + Modul.
-                                             DataRawSize + Word(GOffset))
-                      Else
-                        NewSym^.Addr := Ptr(Seg(Modul.DataBase^), Ofs(Modul.DataBase^) + Word(
-                                        GOffset));
-                    End;
-      End;
-    End;
+        Seek(F, StartPos);
+        While FilePos(F) < EndPos Do Begin
+                BlockRead(F, H, SizeOf(H));
+                If H.RecLen > 0 Then BlockRead(F, Buf, H.RecLen);
+                Case H.RecType Of 
+                REC_RELOC, REC_SEGRELOC: Begin
+                        RelFlags := Buf[0];
+                        Move(Buf[1], RelOffset, 4);
+                        RelWidth := Buf[5];
+                        Move(Buf[6], RelRSeg, 2);
+                        If (RelFlags And $0F) = 0 Then BaseAddr := Modul.CodeBase
+                        Else BaseAddr := Modul.DataBase;
+                        PatchAddr := Ptr(Seg(BaseAddr^), Ofs(BaseAddr^) + Word(RelOffset));
+                        If RelRSeg = 0 Then TargetPtr := Modul.CodeBase
+                        Else If RelRSeg = 1 Then TargetPtr := Modul.DataBase
+                        Else If RelRSeg = 2 Then TargetPtr := Ptr(Seg(Modul.DataBase^),
+                                                 Ofs(Modul.DataBase^) +
+                                                 Modul.DataRawSize)
+                        Else TargetPtr := Modul.DataBase;
+                        If H.RecType = REC_RELOC Then Begin
+                                If RelWidth = 2 Then Begin
+                                        PatchVal := Ofs(TargetPtr^);
+                                        Inc(Word(PatchAddr^), PatchVal);
+                                End;
+                        End Else Begin
+                                If RelWidth = 2 Then Word(PatchAddr^) := Seg(TargetPtr^);
+                        End;
+                End;
+                REC_GLOBAL: Begin
+                        GSegID := Buf[1];
+                        Move(Buf[2], GOffset, 4);
+                        New(NewSym);
+                        NewSym^.Name := ExtractString(Buf, 6, H.RecLen);
+                        NewSym^.Next := Modul.Exports;
+                        Modul.Exports := NewSym;
+                        If GSegID = 0 Then
+                          NewSym^.Addr := Ptr(Seg(Modul.CodeBase^), Ofs(Modul.CodeBase^) + Word(GOffset))
+                        Else If GSegID = 2 Then
+                               NewSym^.Addr := Ptr(Seg(Modul.DataBase^), Ofs(Modul.DataBase^) + Modul.
+                                               DataRawSize + Word(GOffset))
+                        Else
+                          NewSym^.Addr := Ptr(Seg(Modul.DataBase^), Ofs(Modul.DataBase^) + Word(GOffset));
+                End;
+                End;
+        End;
 End;
 
 Function LoadLibrary(const FileName: String) : PRDFModule;
