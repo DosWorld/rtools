@@ -1,0 +1,13 @@
+all: main.exe test.rdf
+
+main.exe: main.c rdfload.c
+        wcl -ml main.c rdfload.c
+
+test.rdf: test.asm
+        nasm -f rdf test.asm
+
+clean:
+        del *.bak
+        del *.rdf
+        del *.exe
+        del *.obj
