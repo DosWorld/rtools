@@ -365,7 +365,6 @@ BEGIN
                         SET_RELOC_REC(rec, c);
                         RDF_WRITE_REC(new_headers, RREC_RELOC, c);
                 END;
-                Close(hdr);
         END;
 { copy seg-relocation recs }
         IF NOT err THEN BEGIN
@@ -512,6 +511,7 @@ VAR     err      : BOOLEAN;
         import   : PIMPORTS;
         p        : DWORD;
         find     : BOOLEAN;
+        rtype    : CHAR;
 BEGIN
         err := build_plan.rdfs = NIL;
         startRdf := NIL;
@@ -546,41 +546,46 @@ BEGIN
         { build import tables }
         r := build_plan.rdfs;
         WHILE (NOT err) AND (r <> NIL) DO BEGIN
-                Seek(build_plan.hdr, r^.hdr_ofs);
-                WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
-                        GET_RELOC_REC(s, rrec);
-                        IF rrec.rseg <= r^.bss_segnum THEN CONTINUE;
-                        IF FindImportInBuildPlan(r^.linker.import, '', rrec.rseg) THEN CONTINUE;
-                        p := FilePos(build_plan.hdr);
-                        find := FALSE;
+                rtype := RREC_RELOC;
+                REPEAT
                         Seek(build_plan.hdr, r^.hdr_ofs);
-                        WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_IMPORT, s) DO BEGIN
-                                GET_IMPORT_REC(s, irec);
-                                IF irec.seg = rrec.rseg THEN BEGIN
-                                        find := TRUE;
-                                        BREAK;
+                        WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, rtype, s) DO BEGIN
+                                GET_RELOC_REC(s, rrec);
+                                IF rrec.rseg <= r^.bss_segnum THEN CONTINUE;
+                                IF FindImportInBuildPlan(r^.linker.import, '', rrec.rseg) THEN CONTINUE;
+                                p := FilePos(build_plan.hdr);
+                                find := FALSE;
+                                Seek(build_plan.hdr, r^.hdr_ofs);
+                                WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_IMPORT, s) DO BEGIN
+                                        GET_IMPORT_REC(s, irec);
+                                        IF irec.seg = rrec.rseg THEN BEGIN
+                                                find := TRUE;
+                                                BREAK;
+                                        END;
                                 END;
+                                IF NOT find THEN BEGIN
+                                        System.Writeln(
+                                        'Invalid relocation record - links to non-exists import ', rrec.rseg);
+                                        err := TRUE;
+                                        CONTINUE;
+                                END;
+                                IF r^.linker.import = NIL THEN BEGIN
+                                        GetMem(import, SizeOf(TIMPORTS));
+                                        FillChar(import^, SizeOf(TIMPORTS), #0);
+                                        r^.linker.import := import;
+                                END;
+                                IF r^.linker.import^.import_count = REC_IN_PLAN THEN BEGIN
+                                        GetMem(import, SizeOf(TIMPORTS));
+                                        FillChar(import^, SizeOf(TIMPORTS), #0);
+                                        import^.next := r^.linker.import;
+                                        r^.linker.import := import;
+                                END;
+                                Inc(r^.linker.import^.import_count);
+                                r^.linker.import^.import[r^.linker.import^.import_count].rec := irec;
+                                Seek(build_plan.hdr, p);
                         END;
-                        IF NOT find THEN BEGIN
-                                System.Writeln(
-                                'Invalid relocation record - links to non-exists import ', rrec.rseg);
-                                err := TRUE;
-                        END;
-                        IF r^.linker.import = NIL THEN BEGIN
-                                GetMem(import, SizeOf(TIMPORTS));
-                                FillChar(import^, SizeOf(TIMPORTS), #0);
-                                r^.linker.import := import;
-                        END;
-                        IF r^.linker.import^.import_count = REC_IN_PLAN THEN BEGIN
-                                GetMem(import, SizeOf(TIMPORTS));
-                                FillChar(import^, SizeOf(TIMPORTS), #0);
-                                import^.next := r^.linker.import;
-                                r^.linker.import := import;
-                        END;
-                        Inc(r^.linker.import^.import_count);
-                        r^.linker.import^.import[r^.linker.import^.import_count].rec := irec;
-                        Seek(build_plan.hdr, p);
-                END;
+                        IF rtype = RREC_RELOC THEN rtype := RREC_SEGRELO ELSE rtype := #0;
+                UNTIL rtype = #0;
                 r := r^.next;
         END;
         { resolve imports }

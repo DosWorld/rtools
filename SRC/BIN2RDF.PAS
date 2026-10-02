@@ -40,7 +40,7 @@ BEGIN
 
         IF IsOpen(i) AND IsOpen(o) AND IsOpen(hdr) AND IsOpen(code) AND IsOpen(data) THEN BEGIN
                 IF is_code THEN BlockCopy(i, code, FileSize(i))
-                ELSE BlockCopy(i, code, FileSize(i));
+                ELSE BlockCopy(i, data, FileSize(i));
 
                 FillChar(rec, SizeOf(rec), #0);
                 rec.name := name;

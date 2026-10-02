@@ -1,6 +1,6 @@
-# NE (New Executable) / DPMI16 — reference format
+# NE (New Executable) / DPMI16 - reference format
 
-## Part 1 — The Borland Pascal reference (empirical, byte-exact)
+## Part 1 - The Borland Pascal reference (empirical, byte-exact)
 
 ### 1.1 Overall file shape
 
@@ -21,7 +21,7 @@
 +-------------------+
 |  imported names   |   00 <counted strings...>  (leading 00 = terminator@0)
 +-------------------+
-|  entry table      |   4 zero bytes (empty — see §1.6)
+|  entry table      |   4 zero bytes (empty - see sec. 1.6)
 +-------------------+
 |  nonresident names|   "STEM.EXE" (ord 0) + 00 terminator  (at file offset)
 +-------------------+  (padded to sector)
@@ -32,5 +32,5 @@
 ```
 
 `e_lfanew` is always **`0x0E3E`** in the BPC reference because its MZ stub is
-a fixed 3646-byte blob. (Our own stub differs in size — see Part 2.)
+a fixed 3646-byte blob. (Our own stub differs in size - see Part 2.)
 

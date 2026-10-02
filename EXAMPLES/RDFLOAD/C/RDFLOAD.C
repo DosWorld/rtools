@@ -58,9 +58,9 @@ static uint16_t Align2(uint16_t size) {
     return size;
 }
 
-static void ExtractString(const uint8_t *buf, int offset, int maxlen, char *out) {
+static void ExtractString(const uint8_t *buf, int offset, int maxlen, char *out, int outsize) {
     int i = 0;
-    while (offset + i < maxlen && buf[offset + i] != 0) {
+    while (offset + i < maxlen && i < outsize - 1 && buf[offset + i] != 0) {
         out[i] = buf[offset + i];
         i++;
     }
@@ -198,7 +198,7 @@ static void ApplyRecords(int fd, long start, long end, PRDFModule mod) {
 
                 newsym = (PExportSym)malloc(sizeof(TExportSym));
                 if (newsym == NULL) break;
-                ExtractString(buf, 6, h.RecLen, newsym->Name);
+                ExtractString(buf, 6, h.RecLen, newsym->Name, sizeof(newsym->Name));
                 newsym->Next = mod->Exports;
                 mod->Exports = newsym;
 

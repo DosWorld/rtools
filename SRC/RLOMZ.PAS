@@ -200,8 +200,9 @@ BEGIN
                 hdr.sign := MZ_SIGN;
                 hdr.header_par := FilePos(o) SHR 4;
                 BlockCopy(code, o, FileSize(code));
-                hdr.blk_count := (FileSize(code) SHR 9) + 1;
-                hdr.lblk_size := (FileSize(code) AND $1FF);
+                { pages count the whole file, header included }
+                hdr.blk_count := (FileSize(o) + $1FF) SHR 9;
+                hdr.lblk_size := FileSize(o) AND $1FF;
                 hdr.relocs_ofs := SizeOf(MZ_HEADER);
                 hdr.min_ext_par :=
                         (hdr.ss - hdr.min_ext_par)
@@ -409,8 +410,9 @@ BEGIN
                 BlockCopy(code, o, FileSize(code));
                 Seek(data, 0);
                 BlockCopy(data, o, FileSize(data));
-                hdr.blk_count := ((FileSize(code) + FileSize(data)) SHR 9) + 1;
-                hdr.lblk_size := ((FileSize(code) + FileSize(data)) AND $1FF);
+                { pages count the whole file, header included }
+                hdr.blk_count := (FileSize(o) + $1FF) SHR 9;
+                hdr.lblk_size := FileSize(o) AND $1FF;
                 hdr.relocs_ofs := SizeOf(MZ_HEADER);
                 hdr.min_ext_par :=
                         (hdr.ss - smz_bss_seg)

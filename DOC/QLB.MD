@@ -8,7 +8,7 @@ line has no `/L`, see section 15.)
 Everything here was read off the shipped binaries and off Microsoft's own dumper,
 which travels with QuickBASIC 4.5 as `INC\EXAMPLES\QLBDUMP.BAS`. Where a
 measurement was possible it was taken; where the file could not answer, the
-document says so rather than guessing — and §16, which loads a `.QLB` and calls
+document says so rather than guessing - and sec. 16, which loads a `.QLB` and calls
 into it, is the part that was executed rather than read.
 
 **Confidence is marked throughout**, because a reverse-engineering document that
@@ -16,7 +16,7 @@ does not say where its certainty stops is worse than no document:
 
 | marking | meaning |
 |---|---|
-| *measured* | read out of the shipped files, reproducible with the reader in §13 |
+| *measured* | read out of the shipped files, reproducible with the reader in sec. 13 |
 | *documented* | stated by Microsoft in a file that travels with the product |
 | *inferred* | follows from a measurement, but the step is mine |
 | **OPEN** | I could not settle it from the files; the evidence is given |
@@ -55,13 +55,13 @@ an MZ image that QB loads into its own address space, then resolves by *name* wh
 a program calls into it.
 
 The user-visible purpose is the one the manual states: a `.QLB` lets a QuickBASIC
-program call routines that were written and compiled outside QuickBASIC — assembly
-language, or Microsoft C, or `.OBJ` files — without producing an `.EXE`.
+program call routines that were written and compiled outside QuickBASIC - assembly
+language, or Microsoft C, or `.OBJ` files - without producing an `.EXE`.
 
 The library that ships this way in QuickBASIC 4.5 is `QB.QLB`, which exposes six
 routines (`INTERRUPT`, `INTERRUPTX`, `ABSOLUTE`, `INT86OLD`, `INT86XOLD`,
 `SetUEvent`) so that a BASIC program can issue software interrupts and call
-absolute addresses — which plain QuickBASIC cannot do.
+absolute addresses - which plain QuickBASIC cannot do.
 
 The three QuickBASIC artifacts are easy to confuse, and `PACKING.LST` describes
 each in one line (*documented*):
@@ -72,7 +72,7 @@ each in one line (*documented*):
 | `QB.QLB` | "The Quick library containing support routines for DOS system calls" | the same routines, in the loadable container described here |
 | `BQLB45.LIB` | "The library of supporting routines that are used when creating Quick libraries" | the glue the QLB needs; linked into every QLB |
 
-So `QB.QLB` is `QB.LIB` **plus** `BQLB45.LIB`, run through `LINK /Q` (§11) — which
+So `QB.QLB` is `QB.LIB` **plus** `BQLB45.LIB`, run through `LINK /Q` (sec. 11) - which
 the same file says in as many words, describing one set of routines as available
 "in the QB.QLB Quick library or in the QB.LIB stand-alone library".
 
@@ -105,9 +105,9 @@ but the ratio here (a third) makes it obvious.
 which sits inside the image, after the code and data. This is the single fact that
 makes a `.QLB` a `.QLB`.
 
-Two more fields to keep in mind, because §9 comes back to them: **`e_ss = 03DE`** is
+Two more fields to keep in mind, because sec. 9 comes back to them: **`e_ss = 03DE`** is
 the same value 113 of the 143 relocation entries use as their frame, and
-**`e_minalloc = e_maxalloc = FFFF`** is not what an ordinary EXE asks for — a
+**`e_minalloc = e_maxalloc = FFFF`** is not what an ordinary EXE asks for - a
 program that meant to run on its own would ask for zero extra paragraphs and let
 the loader decide.
 
@@ -125,17 +125,17 @@ QLBDUMP.BAS writes it as      (CParHdr + CS) * 16 + IP + 1
 For `QB.QLB`: `(0x40 + 0xAC) * 16 + 0x0D` = **file offset `0xECD`**, and the magic
 word is there. For the debug build `DEBUG\D3\QB.QLB` it is `0x11CD`.
 
-**The `+ 1` in `QLBDUMP.BAS` is not a displacement — it is the 0-based to 1-based
+**The `+ 1` in `QLBDUMP.BAS` is not a displacement - it is the 0-based to 1-based
 conversion.** QuickBASIC's `GET #n, position, var` and `SEEK` number bytes from
 1, so the BASIC position of file offset `0xECD` is `0xECE`. Read as a displacement
 the sample looks like it lands one byte past the magic and would print
 `Not a QB UserLibrary`; read as the conversion, it is exactly right, which is one
-more independent confirmation of the formula — this time from Microsoft's own
+more independent confirmation of the formula - this time from Microsoft's own
 code rather than from the bytes.
 
-In image-relative terms the header sits at `CS * 16 + IP` = `0xACD` — but that
+In image-relative terms the header sits at `CS * 16 + IP` = `0xACD` - but that
 number is relative to the base the MZ header *declares* (`CParHdr * 16` = `0x400`),
-and the image really begins at `0x402` (§9.1), so the header's image offset is
+and the image really begins at `0x402` (sec. 9.1), so the header's image offset is
 `0xACB`. Nothing depends on the difference: the formula is a file position, and
 both readings name the same byte.
 
@@ -144,8 +144,8 @@ both readings name the same byte.
 ## 4. The QB header
 
 Twelve bytes. `QLBDUMP.BAS` declares all twelve (*documented*) but gives the first
-six no meaning at all — it calls them `QBHead AS STRING * 6`, "QB specific
-heading" — so the split below is *documented* for the last six and *measured* for
+six no meaning at all - it calls them `QBHead AS STRING * 6`, "QB specific
+heading" - so the split below is *documented* for the last six and *measured* for
 the first six:
 
 ```
@@ -196,7 +196,7 @@ use `w5`..`w7`, `Init` uses `w8`..`w10`: two triples *segment, size low, size hi
 `DOC\QLB-IMP.MD` section 8; *measured 2026-10-02*, read from the code of the dispatcher).
 
 **Measured, and the neatest fact in the format: that jump lands exactly on
-`_main`.** In `QB.QLB` the jump is `EA 10 00 7B 00` — i.e. `jmp far 007B:0010` —
+`_main`.** In `QB.QLB` the jump is `EA 10 00 7B 00` - i.e. `jmp far 007B:0010` -
 and the symbol table's `_main` is recorded at `007B:0010`. `__aulstart` is the same
 address. In `DEBUG\D3\QB.QLB` the jump is `EA 10 00 95 00` and `_main` is at
 `0095:0010`. So the entry stub is a jump to the C runtime startup of the library:
@@ -204,11 +204,11 @@ a `.QLB` is, at bottom, a small-model Microsoft C program. *Inferred 2026-10-02:
 never executes this jump (`_main` is `exit(1)`, and every library works); `RLINK` points
 it at the entry-point routine of the library.
 
-At `007B:0010` in `QB.QLB` sits `B8 01 4C CD 21 CB` — `mov ax,4C01h / int 21h /
+At `007B:0010` in `QB.QLB` sits `B8 01 4C CD 21 CB` - `mov ax,4C01h / int 21h /
 retf`, the `exit(1)` thunk, at exactly the address the symbol table records. The
 operand and the table agree byte for byte, with no correction between them; they
 only look two bytes apart if the entry jump is read against the base the MZ header
-declares instead of the real one, which is §9.1.
+declares instead of the real one, which is sec. 9.1.
 
 ---
 
@@ -229,15 +229,15 @@ offset  size  field      what it is
   +6      2   segment    the symbol's segment
 ```
 
-`QLBDUMP.BAS` declares this as `Flags`, `NameStart`, `other AS STRING * 4` — it
+`QLBDUMP.BAS` declares this as `Flags`, `NameStart`, `other AS STRING * 4` - it
 never looks at the last four bytes, but they are the address: **`(offset, segment)`,
 in that order, the same order the `EA` far jump uses.** Measured two ways:
 
 * `_main` is recorded as `offset=0010 segment=007B`, and the far jump is
-  `EA 10 00 7B 00` — byte for byte the same pair. (§4)
-* `INT86OLD` is `0011:0004`, and image-relative that address lands on real code —
-  see the table in §9, which also shows how the segment half is used at call time
-  (§10.2) and why it cannot be flattened into an image offset.
+  `EA 10 00 7B 00` - byte for byte the same pair. (sec. 4)
+* `INT86OLD` is `0011:0004`, and image-relative that address lands on real code -
+  see the table in sec. 9, which also shows how the segment half is used at call time
+  (sec. 10.2) and why it cannot be flattened into an image offset.
 
 `QB.QLB` has **22 code** and **68 data** entries; `DEBUG\D3\QB.QLB` has 29 code and
 69 data.
@@ -248,19 +248,19 @@ in that order, the same order the `EA` far jump uses.** Measured two ways:
 |---|---|---|
 | `0001` | code symbols with a real segment (`007B`, `0095`, `0011`, `0023`) | code |
 | `0002` | data symbols with a real segment (`00A6`, `00D6`) | data |
-| `0005` | `FIARQQ`…`FJSRQQ`, `__acrtused`, `__fpmath`, `__fpsignal`, `__fptaskdata`, `__aDBdoswp` — **all with `segment = 0000`** | absolute |
+| `0005` | `FIARQQ`...`FJSRQQ`, `__acrtused`, `__fpmath`, `__fpsignal`, `__fptaskdata`, `__aDBdoswp` - **all with `segment = 0000`** | absolute |
 
 The pattern that holds across both shipped files is *inferred*: bit 0 marks code,
-bit 1 marks data, bit 2 marks an absolute symbol. The three names in §7 below,
+bit 1 marks data, bit 2 marks an absolute symbol. The three names in sec. 7 below,
 `ABSOLUTE` / `INTERRUPT` / `INTERRUPTX`, are the exception that stops this from
-being a rule — see §9.
+being a rule - see sec. 9.
 
 The `0005` group is worth naming, because it is not QuickBASIC at all: `FIARQQ`,
 `FJARQQ`, `FICRQQ`, `FIDRQQ`, `FIERQQ`, `FISRQQ`, `FIWRQQ`, `FJSRQQ` are the
 Microsoft C 5.x **8087-emulator linkage symbols**, and `__acrtused` is the classic
 MS C marker whose mere presence pulls in the C startup.
 
-**For these, the `offset` field is not an offset — it is the value**, and
+**For these, the `offset` field is not an offset - it is the value**, and
 `segment = 0` is what says so. That is how `__acrtused` reads as `9876h`, the
 value every MS C object carries, and how `FJARQQ` / `FJSRQQ` / `FJCRQQ` read as
 `4000h` / `8000h` / `C000h`. Measured, all fourteen of them:
@@ -302,7 +302,7 @@ it exactly that way (`CurrentSym = QHdrPos + QlbSym.NameStart`, then `INPUT$(40)
 
 **Measured.** In `QB.QLB` the first code symbol `_brkctl` has `nameStart = 0x3F0`;
 `QHdrPos + 0x3F0` is file `0x12BD`, and the bytes there are
-`_brkctl\0_execve\0` — the entries run in table order and their names sit next to
+`_brkctl\0_execve\0` - the entries run in table order and their names sit next to
 each other in the pool.
 
 So the file's tail is:
@@ -325,7 +325,7 @@ for `b_ULVars`.
 
 ---
 
-## 7. What is exported — the API rule
+## 7. What is exported - the API rule
 
 **There are no ordinals.** The tables list the names and the addresses of the symbols of
 the library, name to address. *Measured 2026-10-02:* QB does not resolve a `CALL` from the
@@ -356,15 +356,15 @@ Six names (*measured*, and matching `QB.BI`):
 
 | name | table | recorded address |
 |---|---|---|
-| `ABSOLUTE` | code | `0000:0000` (see §9) |
-| `INTERRUPT` | code | `0000:000C` (see §9) |
-| `INTERRUPTX` | code | `0000:0019` (see §9) |
+| `ABSOLUTE` | code | `0000:0000` (see sec. 9) |
+| `INTERRUPT` | code | `0000:000C` (see sec. 9) |
+| `INTERRUPTX` | code | `0000:0019` (see sec. 9) |
 | `INT86OLD` | code | `0011:0004` |
 | `INT86XOLD` | code | `0011:0011` |
 | `SetUEvent` | code | `0023:0570` |
 
 `QB.BI` (*documented*, it travels with QuickBASIC) declares five of them and gives
-their signatures — `INTERRUPT(intnum, inreg AS RegType, outreg AS RegType)`,
+their signatures - `INTERRUPT(intnum, inreg AS RegType, outreg AS RegType)`,
 `INTERRUPTX(intnum, inreg AS RegTypeX, outreg AS RegTypeX)`, `ABSOLUTE(address)`,
 and the two older array-based forms. `SetUEvent` is not in `QB.BI`.
 
@@ -373,7 +373,7 @@ linkage: `_main`, `_exit`, `_brkctl`, `_execve`, `_spawnve`, `_end`, `_edata`,
 `_environ`, `_errno`, `b_errlin`, `b_errmod`, `b_erradr`, `b_errnum`, `b_ULVars`,
 `b_ULSymSeg`, `STKHQQ`, and the `F*QQ` set.
 
-Two of those are not incidental — see §10.
+Two of those are not incidental - see sec. 10.
 
 ### The debug build exports more
 
@@ -406,7 +406,7 @@ the public symbols of the `.LIB` files (`QB.LIB` or `QBX.LIB`, and the runtime l
 
 ---
 
-## 8. Worked example — the raw bytes of `QB.QLB`
+## 8. Worked example - the raw bytes of `QB.QLB`
 
 ```
 file 0xECD   EA 10 00 7B 00 02 75 6C 22 00 D4 00      <- QB header
@@ -425,21 +425,21 @@ file 0x16BE  end of file
 
 ---
 
-## 9. Address mapping — what is certain, and what is not
+## 9. Address mapping - what is certain, and what is not
 
 Code addresses turned out to be solid once one thing was right, and that one thing
 was not what the header says: the image does not begin where `CParHdr` puts it.
 Data addresses I could not close. Both are set out precisely, so that nobody has to
-rediscover either — and so that nobody trusts the data half further than it goes.
+rediscover either - and so that nobody trusts the data half further than it goes.
 
 **The header's own position is `CParHdr * 16 + CS * 16 + IP`** and that formula is
 right: it lands on the magic, and the name pool reached from there lands on the
-names. Two independent confirmations, both in §3 and §6. It is a *file* position,
-and reading it as the image base is what §9.1 corrects.
+names. Two independent confirmations, both in sec. 3 and sec. 6. It is a *file* position,
+and reading it as the image base is what sec. 9.1 corrects.
 
 **Certain: code symbols are image-relative, i.e. `image_offset = segment * 16 +
-offset`, with no correction of any kind** — once the image's real base is used,
-which is file `0x402` and *not* the `CParHdr * 16` the MZ header declares (§9.1
+offset`, with no correction of any kind** - once the image's real base is used,
+which is file `0x402` and *not* the `CParHdr * 16` the MZ header declares (sec. 9.1
 below is the measurement). Measured on all 22 code entries of `QB.QLB`; these are
 the seven that carry meaning, and for each the address computed that way lands on
 a textbook routine:
@@ -460,27 +460,27 @@ Read the bodies and they are exactly what the names promise:
   address and far-returns to it. `ABSOLUTE(address)`.
 * `INTERRUPT`, `INTERRUPTX`, `INT86OLD`, `INT86XOLD` are four C prologues, and the
   two pairs are byte-identical for their first nine bytes except for the size
-  word each stores — 8 words for the `INT86*` pair, 10 for the `INTERRUPT*` pair.
+  word each stores - 8 words for the `INT86*` pair, 10 for the `INTERRUPT*` pair.
   The `jmp +11` at the end of the second prologue is what makes `INTERRUPTX`
   share the first one's body.
 * `SetUEvent` is a two-instruction export thunk onto the real routine, which is
   the normal shape for a published entry point.
-* `_main` is `exit(1)` — and the entry far jump of §4 points straight at it.
+* `_main` is `exit(1)` - and the entry far jump of sec. 4 points straight at it.
 
 Two footnotes for anyone disassembling this library:
 
 * **A body is not always a prologue.** `__cexit`'s recorded address holds the
-  single byte `CB` — a bare `retf`. That is not a misread; it is what a stub for a
+  single byte `CB` - a bare `retf`. That is not a misread; it is what a stub for a
   feature this configuration does not use looks like.
 * **`__chkstk`, `__fptrap`, `__nullcheck`, `__fpreset` are not the routines MS C
   normally gives those names.** They are cells of a table of 4-byte entries, each
-  `CD 3F` (`int 3Fh` — QuickBASIC's own far-pointer hook, which the interpreter
+  `CD 3F` (`int 3Fh` - QuickBASIC's own far-pointer hook, which the interpreter
   traps) followed by a ModRM byte `2F`, `30`, `31`, `32`, `33`, `34`, `35`. The
   four names point at consecutive cells, so what follows each is an instruction
   the trap handler is meant to decode, not a compiled body. Do not read these
   against a stock Microsoft C runtime.
 
-The pair of `push bp` prologues is worth reading with §10.1 in hand: the routine's
+The pair of `push bp` prologues is worth reading with sec. 10.1 in hand: the routine's
 second half is reached by `push cs / push 00BE`, i.e. by an offset *inside its own
 segment*, which is why the segment half of a symbol's address has to be honoured
 and not merely turned into an image offset.
@@ -493,20 +493,20 @@ from `0x402`**: the symbol tables, the relocation table's entry addresses, the f
 pointers stored in the code, and the immediates the code pushes. Only the MZ
 header's own `cs:ip` agrees with `0x400`.
 
-**The measurement** — the relocation table, on both shipped `.QLB` files, read
+**The measurement** - the relocation table, on both shipped `.QLB` files, read
 under both bases. A relocatable word must hold a *segment* of the module
-(`0023`, `007B`, `03DE` …). Count how many entries point at a word that does:
+(`0023`, `007B`, `03DE` ...). Count how many entries point at a word that does:
 
 ```
                        entries whose target word is a module segment
 file        size   relocs   base 0x400   base 0x402
 QB.QLB      5822     143      0 of 143     27 of 143   (20 x 0023, 7 x 007B)
-DEBUG QB.QLB 6751    181      0 of 181     44 of 181   (…the same two segments)
+DEBUG QB.QLB 6751    181      0 of 181     44 of 181   (...the same two segments)
 ```
 
 Under `0x400`, *not one* of the 324 entries across the two files points at a
 segment value; under `0x402`, every entry that lands inside the file does. (The
-ones that land nowhere — 116 of 143 — are the DGROUP entries at segment `03DE`,
+ones that land nowhere - 116 of 143 - are the DGROUP entries at segment `03DE`,
 which is past the end of the file: the rest of the image is BSS, and `ss:sp` is
 in there too.)
 
@@ -514,17 +514,17 @@ in there too.)
 
 | what the file says | under `0x402` |
 |---|---|
-| symbol `INT86OLD` = `0011:0004` | image `0x114` = file `0x516` = `55 8B EC` — the prologue |
+| symbol `INT86OLD` = `0011:0004` | image `0x114` = file `0x516` = `55 8B EC` - the prologue |
 | the entry far jump's operand `007B:0010` | image `0x7C0` = `mov ax,4C01h / int 21h / retf` |
-| reloc entry `0023:006C` | image `0x29C` — the *segment* half of the `jmp far 0023:0188` at image `0x299` |
+| reloc entry `0023:006C` | image `0x29C` - the *segment* half of the `jmp far 0023:0188` at image `0x299` |
 
 Under `0x400` each of the three is two bytes low, and the last one lands on the
-far pointer's *offset* half — which is exactly the failure mode §10.1 reproduces
+far pointer's *offset* half - which is exactly the failure mode sec. 10.1 reproduces
 with DOS's own overlay load.
 
 **The one field that disagrees.** `cs:ip` = `00AC:000D`, so `(CParHdr + CS) * 16 +
-IP` = file `0xECD` — which is where the QB header really is (that is the formula
-§3 uses, and `QLBDUMP.BAS` with it). It agrees with `0x400` because it is a *file*
+IP` = file `0xECD` - which is where the QB header really is (that is the formula
+sec. 3 uses, and `QLBDUMP.BAS` with it). It agrees with `0x400` because it is a *file*
 offset, and the file is the same file; the two conventions only diverge once
 something has to decide where the module *starts* in memory. Nothing about the
 header's own position is wrong.
@@ -544,7 +544,7 @@ them. It does choose: the reloc table above is the vote, and it is 0-versus-27.
 
 
 **Measured, and consistent: the data segment `00A6` starts at image `0xA60`**, where
-real initialised data sits — far pointers into code segment `0023`, and the
+real initialised data sits - far pointers into code segment `0023`, and the
 Microsoft C segment names `XOB`, `XOE`, `XPB`, `XPE`, `XCB`, `XCE`, `XIB`, `XIE`,
 `COMMON`.
 
@@ -608,7 +608,7 @@ and above (for example `b_ULVars` at `3318`) is in the tail.
 The model was checked by building libraries from it (section 12): QuickBASIC 4.0 and 4.5 load
 and run them.
 
-**Settled 2026-10-01** — `B$ULLoad` in `QB.EXE` was disassembled and read, and
+**Settled 2026-10-01** - `B$ULLoad` in `QB.EXE` was disassembled and read, and
 the rule is the plain MZ one:
 
 ```
@@ -618,22 +618,22 @@ address = (e_cparhdr + segment) * 16 + offset
 with the segment taken **from the header block** rather than assumed: `LoadRtmInfo`
 locates the QB header at `(e_cparhdr + e_cs) * 16 + e_ip` and reads `0x22` bytes
 there, so DGROUP is not segment `0000` and that is exactly why "segment 0" fitted
-the code and contradicted the data. §14 item 1 is closed with the same reading.
-The whole loader — every routine, every one of the 22 bytes, and what the eleven
-words of that block actually hold — is `dis/QLB-LOADER.md`; the listings are
+the code and contradicted the data. sec. 14 item 1 is closed with the same reading.
+The whole loader - every routine, every one of the 22 bytes, and what the eleven
+words of that block actually hold - is `dis/QLB-LOADER.md`; the listings are
 `dis/ULLOAD.ASM` and `dis/LOADRTM.ASM`.
 
 ### What *is* settled: `segment = 0000` for three of the six API names
 
-The first three entries of §7's table — `ABSOLUTE`, `INTERRUPT`, `INTERRUPTX` at
-`0000:0000`, `0000:000C`, `0000:0019` — look like the absolute `F*QQ` symbols,
+The first three entries of sec. 7's table - `ABSOLUTE`, `INTERRUPT`, `INTERRUPTX` at
+`0000:0000`, `0000:000C`, `0000:0019` - look like the absolute `F*QQ` symbols,
 which also carry `segment = 0`. They are not. **They are ordinary code addresses
 into segment 0 of the image, which is the stub block at image `0x000`**, and they
 obey the same rule as everything else: image `0x000` is the `ABSOLUTE` trampoline,
 `0x00C` and `0x019` are the two prologues.
 
 They are byte-identical in both shipped `.QLB` files, which is *expected* under
-that reading — LINK emits the same stub prefix for both — and it is what misled my
+that reading - LINK emits the same stub prefix for both - and it is what misled my
 first pass into calling them constants. The block is,
 
 ```
@@ -663,12 +663,12 @@ the mechanism away:
 | `QLBLIBNAME`, `QBLIBRESP`, `SZDOTQLB`, `SZDOTLIB`, `CHECKLIBNAME` | the `"QB.QLB"` / `".QLB"` strings and the default names |
 | `BUFLIB`, `CB_BUFLIB`, `CB_BUFPATH` | buffer and path for the library file |
 
-**"UL" is *User Library*** — the internal name for a `.QLB`.
+**"UL" is *User Library*** - the internal name for a `.QLB`.
 
 ### QB knows five names by heart
 
 The neat part is on the other side, and it is measurable. `QB.QLB` *exports* two
-data symbols to QB, **`b_ULVars` and `b_ULSymSeg`** — and the string
+data symbols to QB, **`b_ULVars` and `b_ULSymSeg`** - and the string
 **`B_ULVARS`** (the exported name, upper-cased) is a hard-coded literal inside
 every interpreter, in its own name pool, with the length-and-offset table entry
 that all its other internal names get (*measured*):
@@ -696,7 +696,7 @@ takes nothing else from a library by name.
 | `b$ULDataLength`, `b$ULDataStart` | variables that QB sets when it loads the library (section 10.3) |
 | `B$ULSYMSEG`, `B$ULGetSeg`, `B_ULSYMSEG` | the segment the library's symbols ended up in |
 | `B$ULGetData`, `B$ULGetProc`, `B$ULGETCOMMON`, `B$ULGETPROC`, `B$ULtoRTFar`, `B$ULtoRTNear` | resolving a library name to a callable address |
-| `B_ULNAMELEN`, `b$ULNameLena` | the length of the literal name — i.e. the `B_ULVARS` pool entry above |
+| `B_ULNAMELEN`, `b$ULNameLena` | the length of the literal name - i.e. the `B_ULVARS` pool entry above |
 
 *Corrected 2026-10-02:* `B$ULAllocDataImage` and its relatives are QB's end of the dispatcher
 interface (section 10.2). The data image is not allocated at an address chosen at load time: its
@@ -756,7 +756,7 @@ half, the dispatcher of section 10.2.
 `INT 21h AH=4Bh AL=03h` is the service that is *supposed* to load an overlay: the
 parameter block is four bytes, `{load segment, relocation factor}`, no PSP is
 created, and each relocation entry is applied as `word += load + factor`. It
-cannot load a `.QLB`, and the reason is §9.1: DOS takes `e_cparhdr` at its word
+cannot load a `.QLB`, and the reason is sec. 9.1: DOS takes `e_cparhdr` at its word
 and puts file `0x400` at `loadseg:0`, so the module sits two bytes low and **every
 entry of the relocation table lands on the word before the one it names**.
 
@@ -779,9 +779,9 @@ produced there is a pointer into the same paragraph as before at a nonsense
 offset. Ours differs from the control in the third word, which is where the
 `0023` was.
 
-The same run loads the library a second time by hand — seek to `0x402`, read
+The same run loads the library a second time by hand - seek to `0x402`, read
 `CParHdr*16 + 2` bytes' worth of image, walk `e_lfarlc`/`e_crlc` and add the load
-segment to each word the table names — and finds that everything is then verbatim:
+segment to each word the table names - and finds that everything is then verbatim:
 the prologue `55 8B EC` sits at image `0x114`, exactly the offset the symbol table
 records for `INT86OLD`, with no correction anywhere.
 
@@ -814,7 +814,7 @@ image 0x18E  50        push ax
 ```
 
 and `0x00BE` is an offset *inside segment `0011`*, i.e. image `0x1CE`. Entered
-with `CS = loadseg + 0`, that far return lands on image `0xBE` — which is a real
+with `CS = loadseg + 0`, that far return lands on image `0xBE` - which is a real
 routine's real second half, just the wrong one (`INTERRUPT`'s, whose capture stub
 sits at the same offset in *its* segment). The failure is silent and looks like a
 hang: the interrupt runs, prints its `Q`, and then unwinds a frame that was never
@@ -828,12 +828,12 @@ DECLARE SUB INT86OLD (intnum AS INTEGER, inarray(1) AS INTEGER, outarray(1) AS I
 
 * three near pointers in the *caller's* segment, pushed left to right, so at entry
   `[bp+6]` = `outarray`, `[bp+8]` = `inarray`, `[bp+0Ah]` = `intnum`;
-* each array is a near pointer to a 4-byte **far** pointer to the data — the
+* each array is a near pointer to a 4-byte **far** pointer to the data - the
   library's own dereference is image `0x22C`, `mov dx,[si+2] / mov ax,[si] / ret`;
 * `intnum` is a near pointer to a word. A number above 255 (high byte non-zero) is
   rejected at image `0x217`: the routine writes `0xFFFF` through that pointer and
   returns without doing anything;
-* the in-array is eight words — `ax, bx, cx, dx, bp, si, di, flags` (`RegType`) —
+* the in-array is eight words - `ax, bx, cx, dx, bp, si, di, flags` (`RegType`) -
   and the out-array is the same eight for `INT86OLD`, ten for `INT86XOLD`, which
   adds `ds` and `es` (`RegTypeX`);
 * the arguments are discarded by the routine's own `retf 6`, so a caller needs
@@ -848,13 +848,13 @@ the `CD nn` instruction in the twenty bytes below that frame, far-returns into i
 and after the interrupt a `retf 6` planted on the same stack returns to a capture
 stub *inside the library*, which finds the routine's own frame again through the
 BP it pushed before the interrupt. So the interrupt executes on the caller's own
-stack, some 50 bytes below the routine's frame — a red zone, and that is the
+stack, some 50 bytes below the routine's frame - a red zone, and that is the
 caller's only obligation: **the 56 bytes of stack the whole sequence reaches
 below the call** must be free. The routine then unwinds with `mov sp,bp / pop bp /
 retf 6`, which leaves `SS:SP` exactly where it was.
 
 **The one quirk in the results:** the out-array's `bp` word is filled with the
-routine's frame address rather than with the simulated BP — every other word is
+routine's frame address rather than with the simulated BP - every other word is
 what the interrupt left, including a `flags` word masked with `0x0FD5` before the
 `int`. Measured: asked for `ax = 0200h, dx = 0051h, flags = 0202h` on `INT 21h`,
 the array comes back `ax = 0251h` (AH consumed by the DOS function), `dx = 0051h`,
@@ -898,11 +898,11 @@ heap there, and a library that needs nothing can answer with `retf`. QB's entry 
 never executed.
 
 **Unloading:** DOS has no "unload overlay" service, because `AL=03h` never had a
-counterpart — the load went into memory the caller already owned. The caller
+counterpart - the load went into memory the caller already owned. The caller
 releases it with `AH=49h`, and since the image is pure data in that block there is
 nothing to finalise first. What the caller *must* not do is free it while a
 return address or a callback into it is still live; `SetUEvent` and the
-`__chkstk`/`__fptrap` cells of §9 exist precisely because such callbacks are how a
+`__chkstk`/`__fptrap` cells of sec. 9 exist precisely because such callbacks are how a
 QuickLibrary is normally used.
 
 
@@ -934,7 +934,7 @@ library `BQLB45.LIB`, the import library:
 
 ## 11. How a QuickLibrary is generated
 
-**Documented, and — unusually for this document — also measurable, because
+**Documented, and - unusually for this document - also measurable, because
 `QB.EXE` builds the command itself.** QuickBASIC's IDE can create a QuickLibrary
 from a menu, so the pieces of the `LINK` command line are sitting in `QB.EXE` as
 string fragments (*measured*, `DISK2\QB.EXE` at `0x426CC`):
@@ -945,8 +945,8 @@ string fragments (*measured*, `DISK2\QB.EXE` at `0x426CC`):
 ```
 
 Every field of the recipe below is in that list: `LINK`, the `+` that joins
-libraries, **`,NUL,`** — the empty map-file field of a LINK command line, which is
-the `,NUL,` in the form below — the `/Q` family of switches, `BQLB45.LIB` as the
+libraries, **`,NUL,`** - the empty map-file field of a LINK command line, which is
+the `,NUL,` in the form below - the `/Q` family of switches, `BQLB45.LIB` as the
 companion library, and `~QBLNK.TMP` / `~QBLIB.TMP` as the link response file and
 the output the IDE then renames.
 
@@ -963,13 +963,13 @@ LINK /Q QB.LIB,QB.QLB,NUL,BQLB45.LIB;
 ```
 
 Run from a directory holding `LINK.EXE` (`DISK3\LINK.EXE`, 69133 bytes), `QB.LIB`
-and `BQLB45.LIB`, that command reproduces the shipped library **byte for byte** —
+and `BQLB45.LIB`, that command reproduces the shipped library **byte for byte** -
 5822 bytes, md5 `dd2bde6ded14f6b2b6f9c89087ce95a2`, the same bytes `DISK3\QB.QLB`
 holds. The debug build reproduces the same way with `DEBUG\D3\BQLB45.LIB` (26849
 bytes) in the last field: 6751 bytes, md5 `3c535f3910481503cd2c913bfbd34e6a`,
 identical to `DEBUG\D3\QB.QLB`. The linker is `Microsoft (R) Overlay Linker Version
 3.69`. The container is therefore not merely readable but *deterministic*: two
-shipped files, two exact rebuilds, and §12's byte spec is what the rebuilder
+shipped files, two exact rebuilds, and sec. 12's byte spec is what the rebuilder
 followed.
 
 **The `+BQLB45.LIB` form an earlier revision of this section gave is wrong, and
@@ -983,8 +983,8 @@ BQLB45.LIB(..\crt\freect.asm) : error L2029 : '__nmalloc' : unresolved external
 
 and writes a 7539-byte `.QLB` holding 38 symbols instead of 31. Naming
 `BQLB45.LIB` as an *input* drags its `freect` module into the image; naming it only
-as the last field — where LINK reads it purely to resolve the image's own
-references — pulls in only the modules the image actually needs. `/NOE`, `/NOD:`
+as the last field - where LINK reads it purely to resolve the image's own
+references - pulls in only the modules the image actually needs. `/NOE`, `/NOD:`
 and the two together change nothing (all four write the same 7539-byte file, md5
 `57f27c90091392a259e66ae5bf5770d8`), and swapping the two inputs' order gives a
 different 7539-byte file (`8700b732dbb48842eb58ff1a635a26c7`). The correct form is
@@ -997,26 +997,26 @@ are the strings `QB.EXE` builds its own command from. The `+` is how the IDE joi
 
 The run is kept in the QBCALL store: `C:\dev\QBCALL\linkq\` holds `LINK.EXE`,
 `QB.LIB`, `BQLB45.LIB`, `DBQLB45.LIB` (the debug one), the batches that ran the
-seven link attempts and their logs — including the wrong-recipe output, kept as the
+seven link attempts and their logs - including the wrong-recipe output, kept as the
 counter-example.
 
-The *inputs* are measurable as they stand — `QB.LIB` (2075 bytes, an OMF library
+The *inputs* are measurable as they stand - `QB.LIB` (2075 bytes, an OMF library
 holding `ABSOLUTE`, `INTERRUPT`, `INTERRUPTX`, `INT86OLD`, `INT86XOLD`) and
 `BQLB45.LIB` (24789 bytes, holding `_main`, `SetUEvent` and the C runtime). Both
 are OMF: they begin with the `F0` library signature and contain the same names as
 ASCII, not MZ.
 
-And the *outputs* agree, name by name — the split between the two inputs is exactly
+And the *outputs* agree, name by name - the split between the two inputs is exactly
 the split the `.QLB` shows (*measured*):
 
 | input | what `QB.QLB` gets from it |
 |---|---|
 | `QB.LIB` (2075 bytes) | the five API routines: `ABSOLUTE`, `INTERRUPT`, `INTERRUPTX`, `INT86OLD`, `INT86XOLD` |
-| `BQLB45.LIB` (24789 bytes) | everything else: `SetUEvent`, `_main`, and the C runtime — `_brkctl`, `_exit`, `__cexit`, `__chkstk`, `__BRUNERR`, `_environ`, `STKHQQ`, `b_ULVars`, `b_ULSymSeg` … |
+| `BQLB45.LIB` (24789 bytes) | everything else: `SetUEvent`, `_main`, and the C runtime - `_brkctl`, `_exit`, `__cexit`, `__chkstk`, `__BRUNERR`, `_environ`, `STKHQQ`, `b_ULVars`, `b_ULSymSeg` ... |
 
 Both are OMF libraries, not MZ images: each begins with the byte `F0`, the OMF
 library signature. So `QB.QLB` is a straight relink of two ordinary object
-libraries into the QuickLibrary container — which is precisely what `LINK /Q` is
+libraries into the QuickLibrary container - which is precisely what `LINK /Q` is
 for.
 
 **What `LINK /Q` adds, hides and refuses** *(measured 2026-10-02, LINK 3.69)*. It always links
@@ -1030,17 +1030,17 @@ files cannot be linked together or changed, only rebuilt from the `.LIB` files, 
 library by version: `BQLB40.LIB` for 4.00, `BQLB41.LIB` for 4.00b, `BQLB45.LIB` for 4.50.
 
 **A note on the distribution copies.** The CD-ROM tree (`COGS`) holds the same file
-as `DISK3\QB.QL$` — 4567 bytes, no `MZ` at the front but the signature
+as `DISK3\QB.QL$` - 4567 bytes, no `MZ` at the front but the signature
 `53 5A 20` = `"SZ "` (*measured*). That is Microsoft's SETUP compression: in that
-tree the last letter of every extension is replaced by `$` — `QB.EXE` -> `QB.EX$`,
+tree the last letter of every extension is replaced by `$` - `QB.EXE` -> `QB.EX$`,
 `LINK.EXE` -> `LINK.EX$`, `BQLB45.LIB` -> `BQLB45.LI$`, `QLBDUMP.BAS` ->
-`QLBDUMP.BA$` — and the file is packed. `UNPACK.EXE` and `SETUP.EXE` sit on the
+`QLBDUMP.BA$` - and the file is packed. `UNPACK.EXE` and `SETUP.EXE` sit on the
 same disks. So `QB.QL$` is `QB.QLB` under compression; it is not a variant of the
 format.
 
 ---
 
-## 12. Emitting one yourself — the byte-level spec
+## 12. Emitting one yourself - the byte-level spec
 
 *Rewritten 2026-10-02.* The first version of this section called the header, two tables and the name
 pool "the whole of what a loader requires". That was wrong: a library written to it is refused, or
@@ -1190,8 +1190,8 @@ if __name__ == '__main__':
                          '' if (public or label == 'segs') else '   (reserved)', where))
 ```
 
-The same thing in QuickBASIC, from Microsoft, is `QB45\INC\EXAMPLES\QLBDUMP.BAS` —
-it is the primary source for §3, §4, §5 and §7, and it is worth reading in full.
+The same thing in QuickBASIC, from Microsoft, is `QB45\INC\EXAMPLES\QLBDUMP.BAS` -
+it is the primary source for sec. 3, sec. 4, sec. 5 and sec. 7, and it is worth reading in full.
 
 ---
 
@@ -1242,24 +1242,24 @@ public and private names (section 7).
 ## 15. Where the samples live
 
 All under `samples/QHelp/qb/` (read-only; nothing there was modified). Two archives
-carry the same QuickBASIC 4.5 files — `qb45.zip` lays them out under `QB45/`, and
+carry the same QuickBASIC 4.5 files - `qb45.zip` lays them out under `QB45/`, and
 `QuickBASIC-4.5.zip` under a `Microsoft QuickBASIC Compiler 4.5 (1988) (MSDN)/
 DISK<n>/` tree. The paths below give the short form.
 
 | path | what |
 |---|---|
-| `QB45/LIB/QB.QLB` | **5822 bytes — the working QuickLibrary; every measurement in §2–§9 is this file** |
-| `QB45/LIB/QB.LIB` | 2075 bytes — its OMF source library, the five API routines |
-| `QB45/LIB/BQLB45.LIB` | 24789 bytes — the QLB glue and the C runtime |
-| `QB45/INC/QB.BI` | the `DECLARE`s for the API (§7) |
-| `QB45/INC/EXAMPLES/QLBDUMP.BAS` | Microsoft's own dumper — the primary source for §3, §4, §5, §7 |
-| `DEBUG/D3/QB.QLB` | 6751 bytes — the debug build, `SetUEvent`'s code segment plus the QBD library |
-| `DEBUG/QB.SYM`, `DEBUG/QB.MAP` | symbols for `QB.EXE` — the source for §10's `B$UL*` names |
-| `DISK2/QB.EXE` | 278804 bytes — QuickBASIC itself; carries `B_ULVARS`, `LIB=QB.QLB`, the LINK-command fragments (§11) |
-| `DISK3/LINK.EXE` | 69133 bytes — the linker with the `/Q` switch |
-| `DISK4/PACKING.LST` | the one-line description of each file, quoted in §1 |
+| `QB45/LIB/QB.QLB` | **5822 bytes - the working QuickLibrary; every measurement in sec. 2-sec. 9 is this file** |
+| `QB45/LIB/QB.LIB` | 2075 bytes - its OMF source library, the five API routines |
+| `QB45/LIB/BQLB45.LIB` | 24789 bytes - the QLB glue and the C runtime |
+| `QB45/INC/QB.BI` | the `DECLARE`s for the API (sec. 7) |
+| `QB45/INC/EXAMPLES/QLBDUMP.BAS` | Microsoft's own dumper - the primary source for sec. 3, sec. 4, sec. 5, sec. 7 |
+| `DEBUG/D3/QB.QLB` | 6751 bytes - the debug build, `SetUEvent`'s code segment plus the QBD library |
+| `DEBUG/QB.SYM`, `DEBUG/QB.MAP` | symbols for `QB.EXE` - the source for sec. 10's `B$UL*` names |
+| `DISK2/QB.EXE` | 278804 bytes - QuickBASIC itself; carries `B_ULVARS`, `LIB=QB.QLB`, the LINK-command fragments (sec. 11) |
+| `DISK3/LINK.EXE` | 69133 bytes - the linker with the `/Q` switch |
+| `DISK4/PACKING.LST` | the one-line description of each file, quoted in sec. 1 |
 | `COGS/DISK3/QB.QL$` | the same `.QLB`, SETUP-compressed; `COGS/DISK3/UNPACK.EXE` unpacks it |
-| `qbasic.zip` -> `qbasic.exe` | 254799 bytes — MS-DOS 5's `QBASIC.EXE`, unpacked, with the same QLB strings and the same `B_ULVARS`; **not tested** (not available on 2026-10-02) |
+| `qbasic.zip` -> `qbasic.exe` | 254799 bytes - MS-DOS 5's `QBASIC.EXE`, unpacked, with the same QLB strings and the same `B_ULVARS`; **not tested** (not available on 2026-10-02) |
 | `F:\Compilers\QBASIC.ZIP` -> `QBASIC.EXE` | 194309 bytes, MS-DOS 6.22 QBasic 1.1, PKLITE-packed. Its usage line is `QBASIC [/B] [/EDITOR] [/G] [/H] [/MBF] [/NOHI] [[/RUN] file]`, **no `/L`**: QBasic does not load libraries (tested 2026-10-02) |
 | `Microsoft QuickBASIC v4/` | QuickBASIC 4.0: `QB.EXE` 230048 bytes, `QB.LIB`, `QB.QLB` 5316 bytes, `BQLB40.LIB`; the same format and the same tests pass (2026-10-02) |
 | `PDSLITE/` | BASIC PDS 7.1 (`QBX.EXE`, `QBX.LIB`, `QBX.QLB`, `QBXQLB.LIB`): same names rules (sections 7 and 14) |
@@ -1269,15 +1269,15 @@ DISK<n>/` tree. The paths below give the short form.
 ## 16. The worked loader: `samples/qlbcall.asm`
 
 One NASM source, `samples/qlbcall.asm`, built to `samples/qlbcall.exe`, is the
-whole of §10.1 and §10.2 running. It is a DOS program (real mode; it makes no
+whole of sec. 10.1 and sec. 10.2 running. It is a DOS program (real mode; it makes no
 DPMI call) and it demonstrates, in five steps, printing what it finds:
 
 | step | what |
 |---|---|
 | 1 | where the program was loaded (`CS`, `DS`, `PSP`) and `PSP:0002`, the first byte past its own block |
-| 2 | `INT 21h AH=4Bh AL=00h`, load-and-execute: it runs itself again with the command tail `/x`, the child announces itself and exits with code 7, the parent reads the code back with `AH=4Dh` and prints it. Every register except `CS:IP` comes back destroyed, so the parent reloads `DS`/`ES` from a `CS`-relative saved word — that is worth seeing once |
-| 3 | `INT 21h AH=4Bh AL=03h`, the overlay load — twice, once with a relocation factor of the load segment and once with 0, so the dump of the patched words shows exactly what DOS did (§10.1) |
-| 4 | the same library loaded by the program's own loader: seek to `0x402`, read the header, zero the block, read the image, apply the 143 entries verbatim — then far-call `INT86OLD` at `CS = block+0011`, `IP = 0004` with `INT 21h/AH=02h/DL='Q'`, print the `Q`, and print the out-array |
+| 2 | `INT 21h AH=4Bh AL=00h`, load-and-execute: it runs itself again with the command tail `/x`, the child announces itself and exits with code 7, the parent reads the code back with `AH=4Dh` and prints it. Every register except `CS:IP` comes back destroyed, so the parent reloads `DS`/`ES` from a `CS`-relative saved word - that is worth seeing once |
+| 3 | `INT 21h AH=4Bh AL=03h`, the overlay load - twice, once with a relocation factor of the load segment and once with 0, so the dump of the patched words shows exactly what DOS did (sec. 10.1) |
+| 4 | the same library loaded by the program's own loader: seek to `0x402`, read the header, zero the block, read the image, apply the 143 entries verbatim - then far-call `INT86OLD` at `CS = block+0011`, `IP = 0004` with `INT 21h/AH=02h/DL='Q'`, print the `Q`, and print the out-array |
 | 5 | unloading with `AH=49h`, and the note that this is the whole of it |
 
 The measured output of step 4 in one place, because these are the numbers the
@@ -1292,8 +1292,8 @@ Q
   out dx    = 0051  out flags = 0202
 ```
 
-`0AAE` is the load segment `0A9D` plus `0x11` — the entry's own segment half, and
-the reason §10.2 exists: with `CS = 0A9D` the same call prints its `Q` and then
+`0AAE` is the load segment `0A9D` plus `0x11` - the entry's own segment half, and
+the reason sec. 10.2 exists: with `CS = 0A9D` the same call prints its `Q` and then
 never comes back.
 
 **How to build it**, under DOSBox-X (`C:\DOSBox-X`, `mount G` is free; the batch
@@ -1307,12 +1307,12 @@ RLINK mzs /o=QLBCALL.EXE QLBCALL.RDF
 ```
 
 It must run from a directory that holds `QB.QLB`, because that is the name it
-opens — the same name and the same directory QuickBASIC uses.
+opens - the same name and the same directory QuickBASIC uses.
 
 Four toolchain traps, all met while building it:
 
 * **`RLINK` needs `TMP` (or `TEMP`) set** or it fails with the misleading
-  `Entry point start not found.` — it writes a temporary header, and with nowhere
+  `Entry point start not found.` - it writes a temporary header, and with nowhere
   to put it, it reports the failure as a missing entry point.
   *Explained and fixed 2026-10-02:* without `TMP`/`TEMP` the temporary file goes to the current
   directory, but `GetDir` of `System2` returned the path without the drive letter and the leading
@@ -1324,17 +1324,17 @@ Four toolchain traps, all met while building it:
   too.
 * **`NASM 0.98` rejects `mov ds, es`** (`invalid combination of opcode and
   operands`); `push es / pop ds` is the spelling it takes.
-* **It also refuses a doubled apostrophe inside a single-quoted string** — write
+* **It also refuses a doubled apostrophe inside a single-quoted string** - write
   `"Q"` inside a single-quoted `db` when a quote is wanted inside the string.
 
 The MZS image the link produces is one flat span: the code at `loadseg:0`, the
 data at `loadseg+0x4C0`, and the stack growing down from `SS:0x2000` with
-`SS = loadseg+0x4C` — measured, `CS = 075D`, `DS = SS = 07A9`, and `07A9 - 075D`
+`SS = loadseg+0x4C` - measured, `CS = 075D`, `DS = SS = 07A9`, and `07A9 - 075D`
 is exactly the `e_ss` in the header. `minalloc = maxalloc = 513` paragraphs, so
 DOS gives the program its image plus `0x2010` bytes and **nothing more**: the
 memory above it stays free, which is why the `AH=48h` of steps 3 and 4 works with
 no `AH=4Ah` resize first. (A `.COM` file has no such header, owns everything DOS
-has, and does need one — which is the whole reason this is an EXE.)
+has, and does need one - which is the whole reason this is an EXE.)
 
 **The host side is two batch files, and no interpreter is involved.** The whole
 set lives in `C:\dev\QBCALL\`, which is the store for this work: `src\qlbcall.asm`
@@ -1343,27 +1343,27 @@ and `src\QLBDUMP.BAS`, `bin\qlbcall.exe`, `build\mkrun.cmd` and `build\GO.BAT`,
 analysers, `docs\QLB.MD` (this document), `examples\` and `AI-MEM\`. `run.cmd` at
 the root is a one-line forwarder to `build\mkrun.cmd`.
 
-* `mkrun.cmd` — copies `qlbcall.asm`, `QB.QLB` and `GO.BAT` into the mount
+* `mkrun.cmd` - copies `qlbcall.asm`, `QB.QLB` and `GO.BAT` into the mount
   (`C:\dos\e\QLBCALL`); deletes the stale `QLBCALL.RDF`, `QLBCALL.EXE` and
   `RUN.TXT`, so a failed build cannot masquerade as a good one; launches the
   emulator with `start "" /wait`; copies the built image into `..\bin\` and, if
   the repository is present, into `samples\`; and types `RUN.TXT`. It takes its
   source from **its own directory**, then `..\src\`, then `samples\qlbcall.asm`,
   so the folder can be moved or copied anywhere. Run it from anywhere.
-* `GO.BAT` — the batch the *guest* runs, because NASM and RLINK are DOS programs:
+* `GO.BAT` - the batch the *guest* runs, because NASM and RLINK are DOS programs:
   `cd \QLBCALL`, set `TMP`/`TEMP`, `NASM`, `RLINK`, `dir`, run the program, `exit`.
 
-**`linkq\` is the other working area in the store, and it is where §11 was run.**
+**`linkq\` is the other working area in the store, and it is where sec. 11 was run.**
 It holds `LINK.EXE`, the two linkable inputs `QB.LIB` and `BQLB45.LIB`, the debug
 `BQLB45.LIB` as `DBQLB45.LIB`, the batches `GO.BAT`/`GO2.BAT`/`GO3.BAT` and their
 logs `RUN.TXT`/`RUN2.TXT`/`RUN3.TXT`. The seven link attempts are kept as written:
-`A.QLB`–`E.QLB` are the wrong-recipe outputs (7539 bytes; `A`, `B`, `C` and `D` are
+`A.QLB`-`E.QLB` are the wrong-recipe outputs (7539 bytes; `A`, `B`, `C` and `D` are
 the same file, `E` differs only in input order) and `F.QLB` and `DBG.QLB` are the
 two byte-exact rebuilds of `QB.QLB` and `DEBUG-QB.QLB`. The batch mounts the folder
-itself — `MOUNT G C:\dev\QBCALL\linkq`, then `G:` — which is why every name in it
+itself - `MOUNT G C:\dev\QBCALL\linkq`, then `G:` - which is why every name in it
 is 8.3.
 
 Both are CRLF. A second copy of the two harness batches, and of `QB.QLB`, is in
 `C:\dev\dwak-scratch\qlbcall\`. `qbasic.hlp` and the archives in
-`samples/QHelp/` are read-only throughout — `QB.QLB` is extracted from
+`samples/QHelp/` are read-only throughout - `QB.QLB` is extracted from
 `samples/QHelp/qb/qb45.zip` and never modified.

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-RTools: MS-DOS tools for linking NASM RDOFF2 object files (`.RDF`) and libraries (`.RDL`) — RLINK, RLIB, RDFDUMP, BIN2RDF. Tools in `SRC/` are Turbo Pascal; tests are NASM assembly; `EXAMPLES/RDFLOAD/` has RDF loader ports in Turbo Pascal (`TP/`) and C (`C/`).
+RTools: MS-DOS tools for linking NASM RDOFF2 object files (`.RDF`) and libraries (`.RDL`) - RLINK, RLIB, RDFDUMP, BIN2RDF. Tools in `SRC/` are Turbo Pascal; tests are NASM assembly; `EXAMPLES/RDFLOAD/` has RDF loader ports in Turbo Pascal (`TP/`) and C (`C/`).
 
 ## Build and test
 
@@ -14,7 +14,7 @@ RTools: MS-DOS tools for linking NASM RDOFF2 object files (`.RDF`) and libraries
 ## Conventions and gotchas
 
 - Use NASM 0.98.39 only (`BIN/NASM.EXE`); other NASM versions handle RDF differently.
-- All files are ASCII with CRLF line endings — preserve CRLF when editing or creating files. Filenames are 8.3 uppercase.
+- All files are ASCII with CRLF line endings - preserve CRLF when editing or creating files. Filenames are 8.3 uppercase.
 - Pascal files: `{ MIT License ... }` header, then `{$I+,A+,R-,S-,O-,F-,D-,L-,Q-,F-,G-}`, then `UNIT X; INTERFACE; USES System2;`. Uppercase keywords.
 - Makefiles in `SRC/` and `TEST/` use tabs; those in `EXAMPLES/` use spaces.
 - RDF is little-endian; format spec is in `DOC/RDOFF2.TXT`.

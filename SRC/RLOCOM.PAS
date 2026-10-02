@@ -49,6 +49,7 @@ VAR     dst_ofs     : DWORD;
         alloc_size  : WORD;
         jmp_instr   : ARRAY[0..3] OF BYTE;
         jmp_addr    : WORD;
+        need_jmp    : BOOLEAN;
 
         err         : BOOLEAN;
 
@@ -100,15 +101,16 @@ BEGIN
         err := err OR DisableRecs(hdr, RREC_IMPORT);
         err := err OR DisableRecs(hdr, RREC_FARIMPORT);
         err := err OR DisableRelocsWidth(hdr, RWIDTH16);
-        code_ofs := $100;
         code_size := FileSize(code);
         bss_ofs := code_ofs + code_size;
 
         Seek(hdr, 0);
         err := err OR (NOT FindEntryPoint(hdr, FileSize(hdr), entry_name, ip));
+        { jump is needed only when entry point is not at the start of code }
+        need_jmp := ip <> 0;
         Inc(ip, code_ofs);
 
-        IF ip <> code_ofs THEN BEGIN
+        IF need_jmp THEN BEGIN
                 Inc(ip, SizeOf(jmp_instr));
                 Inc(code_ofs, SizeOf(jmp_instr));
                 Inc(bss_ofs, SizeOf(jmp_instr));
@@ -130,9 +132,9 @@ BEGIN
         END;
 
         IF NOT err THEN BEGIN
-                IF ip <> code_ofs THEN BEGIN
+                IF need_jmp THEN BEGIN
                         jmp_addr := ip;
-                        jmp_addr := jmp_addr - $103;
+                        jmp_addr := jmp_addr - (code_ofs - SizeOf(jmp_instr) + 3);
                         jmp_instr[0] := $e9;
                         jmp_instr[1] := jmp_addr AND $FF;
                         jmp_instr[2] := (jmp_addr SHR 8) AND $FF;

@@ -462,6 +462,7 @@ VAR     err        : BOOLEAN;
         expl       : PEXPORTS;
         s          : STRING;
         rrec       : RRELOC_REC;
+        selfr      : BOOLEAN;
         bss_size   : DWORD;
         w2         : DWORD;
         n_rel      : DWORD;
@@ -574,6 +575,11 @@ BEGIN
                 Seek(build_plan.hdr, r^.hdr_ofs);
                 WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
+                        IF rrec.width <> RWIDTH16 THEN BEGIN
+                                System.Writeln(r^.filename, ': only 16-bit segment relocations are supported.');
+                                err := TRUE;
+                                BREAK;
+                        END;
                         fix := 0;
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
                                 fix := r^.linker.hmz_code_seg;
@@ -583,8 +589,10 @@ BEGIN
                                 fix := r^.linker.hmz_bss_seg;
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
-                                IF import = NIL THEN err := TRUE
-                                ELSE IF import^.export^.rec.seg
+                                IF import = NIL THEN BEGIN
+                                        System.Writeln(r^.filename, ': unresolved import ', rrec.rseg, '.');
+                                        err := TRUE;
+                                END ELSE IF import^.export^.rec.seg
                                         = import^.export^.rdf^.code_segnum THEN
                                         fix := import^.export^.rdf^.linker.hmz_code_seg
                                 ELSE IF import^.export^.rec.seg
@@ -617,14 +625,27 @@ BEGIN
                 WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_RELOC, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         fix := 0;
+                        selfr := (rrec.seg AND $40) <> 0;
                         rrec.seg := rrec.seg AND $3F;
+                        IF rrec.width <> RWIDTH16 THEN BEGIN
+                                System.Writeln(r^.filename, ': only 16-bit relocations are supported.');
+                                err := TRUE;
+                                BREAK;
+                        END;
+                        IF selfr AND (rrec.rseg <> rrec.seg) THEN BEGIN
+                                System.Writeln(r^.filename, ': self-relative relocation to another segment or import.');
+                                err := TRUE;
+                                BREAK;
+                        END;
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
                         END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
-                                IF import = NIL THEN err := TRUE
-                                ELSE Inc(fix, import^.export^.rec.offset);
+                                IF import = NIL THEN BEGIN
+                                        System.Writeln(r^.filename, ': unresolved import ', rrec.rseg, '.');
+                                        err := TRUE;
+                                END ELSE Inc(fix, import^.export^.rec.offset);
                         END;
                         IF err THEN BREAK;
                         IF rrec.seg = r^.code_segnum THEN BEGIN

@@ -129,7 +129,7 @@ BEGIN
                 IncMem(code, rec.width, rec.offset, dst_ofs);
         END;
 
-        BlockWrite(o, DOS32_EXE_STUB, SizeOf(DOS32_EXE_STUB));
+        IF NOT err THEN BlockWrite(o, DOS32_EXE_STUB, SizeOf(DOS32_EXE_STUB));
 
         FillChar(hdr_adam, SizeOf(ADAM_HEADER), #0);
         hdr_adam.sign := ADAM_MAGIC;
@@ -139,7 +139,7 @@ BEGIN
         hdr_adam.eip := ip;
         hdr_adam.esp := hdr_adam.imgSize - 16;
 
-        BlockWrite(o, hdr_adam, SizeOf(ADAM_HEADER));
+        IF NOT err THEN BlockWrite(o, hdr_adam, SizeOf(ADAM_HEADER));
 
         IF NOT err THEN BEGIN
                 Seek(code, 0);
@@ -149,7 +149,6 @@ BEGIN
         Close(data);
         Close(hdr);
         Close(i);
-        Close(o);
 
         IF err THEN SetDeleteOnClose(o, TRUE);
         Close(o);

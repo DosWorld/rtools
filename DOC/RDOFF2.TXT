@@ -24,7 +24,7 @@ The RDF file is strictly sequential. All multi-byte integers are stored in Littl
 | Offset | Field Name  | Size      | Description |
 |--------|-------------|-----------|-------------|
 |  0000  | Signature   | 6         | Magic string: `'RDOFF2'` |
-|  0006  | Module Size | 4 (DWORD) | Total size of the file in bytes. |
+|  0006  | Module Size | 4 (DWORD) | Size of the file after this field, i.e. file size - 10. |
 |  000A  | Header Size | 4 (DWORD) | Length of the **Header Records** section (starts at `0x0E`). |
 |  000E  | Records     | Variable  | Sequence of metadata records (Relocations, Imports, Exports). |
 |  ...   | Segments    | Variable  | Sequence of raw segment data blocks. Starts immediately after Records. |

@@ -164,7 +164,7 @@ This table lists the external modules that the NE executable is dependent on. It
 | 03 | 1 | BYTE | **Segment Number**: The 1-based index into the segment table. |
 | 04 | 2 | WORD | **Offset**: The offset of the referenced symbol. |
 
-**Module Record Layout (for Fixed Segment, Segment Indicator ≠ 00h/FFh)**
+**Module Record Layout (for Fixed Segment, Segment Indicator != 00h/FFh)**
 
 | Offset (hex) | Size (bytes) | Data Type | Description |
 | :--- | :--- | :--- | :--- |

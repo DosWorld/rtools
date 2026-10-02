@@ -199,7 +199,8 @@ begin
         eofType := 0;
         BlockWrite(W.f, eofType, 4);
         curPos := FilePos(W.f);
-        totalSize := curPos;
+        { size of everything after the size field (signature + size = 10 bytes) }
+        totalSize := curPos - W.headerPos - 4;
         Seek(W.f, W.headerPos);
         BlockWrite(W.f, totalSize, 4);
         BlockWrite(W.f, W.headerSize, 4);
