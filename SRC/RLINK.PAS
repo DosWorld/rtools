@@ -28,7 +28,8 @@ USES Dos, System2, Args, StrBin, rdffmt, rlo
         , rlomz
         , rloadam
         , rlole
-        , rlope;
+        , rlope
+        , rloqbe;
 
 {$DEFINE DEBUG1}
 
@@ -176,13 +177,14 @@ ARG_MZS    = 'mzs';
 ARG_DOSPE  = 'dospe';
 ARG_ADAM   = 'adam';
 ARG_LE     = 'le';
+ARG_QLB    = 'qlb';
 ARG_ZRDX   = 'zrdx';
 ARG_HX     = 'hx';
 ARG_WINPE  = 'winpe';
 ARG_STACK  = 's';
 LIB_ENV    = 'RLIB';
 
-OPTIONS_DESC : ARRAY[0..13] OF TOPT = (
+OPTIONS_DESC : ARRAY[0..14] OF TOPT = (
 (name: ARG_OUTPUT; otype: OPTSTR;  help: 'Set output file name.'),
 (name: ARG_ORG;    otype: OPTSTR;  help: 'Set code start offset for COM output.'; default:'0x0100'),
 (name: ARG_ENTRY;  otype: OPTSTR;  help: 'Set entry-point name.'; default:'start'),
@@ -196,7 +198,8 @@ OPTIONS_DESC : ARRAY[0..13] OF TOPT = (
 (name: ARG_MZL;    otype: OPTCMD;  help: 'Link MZ file, large memory model.'),
 (name: ARG_ADAM;   otype: OPTCMD;  help: 'Link ADAM file (DOS32 Dos-Extender).'),
 (name: ARG_LE;     otype: OPTCMD;  help: 'Link LE file (old-style DPMI executable).'),
-(name: ARG_DOSPE;  otype: OPTCMD;  help: 'Link DOS-PE file (PE without imports).') {,
+(name: ARG_DOSPE;  otype: OPTCMD;  help: 'Link DOS-PE file (PE without imports).'),
+(name: ARG_QLB;    otype: OPTCMD;  help: 'Link QuickBASIC QuickLibrary (QLB). Entry-point is start-up/shut-down hook.') {,
 (name: ARG_WINPE;  otype: OPTCMD;  help: 'Link Win32-PE file.')}
 );
 
@@ -213,6 +216,7 @@ VAR     myArgs        : TARGSTATE;
         err           : BOOLEAN;
         strict_import : BOOLEAN;
         rlib          : STRING;
+        r             : PRDFMETA;
 BEGIN
         ArgsParse(myArgs, OPTIONS_DESC);
 
@@ -252,6 +256,14 @@ BEGIN
         END;
         IF cmd = ARG_DOSPE THEN strict_import := FALSE ELSE strict_import := TRUE;
         IF NOT err THEN err := CreateBuildPlan(build_plan, entry_name, strict_import);
+        IF (NOT err) AND (cmd = ARG_QLB) THEN BEGIN
+                { library: link all modules, not only modules reachable from entry-point }
+                r := build_plan.rdfs;
+                WHILE (r <> NIL) AND (NOT err) DO BEGIN
+                        err := ResolveImports(build_plan, r);
+                        r := r^.next;
+                END;
+        END;
         {$IFDEF DEBUG}
         Assign(build_plan.linked_out, 'small.rdf');
         ReWrite(build_plan.linked_out);
@@ -304,6 +316,11 @@ BEGIN
                         , entry_name
                         , outfname
                         , bin_ss, GetOptBool(myArgs, ARG_HX));
+        END ELSE IF (NOT err) AND (cmd = ARG_QLB) THEN BEGIN
+                err := LinkAndGenQBE(build_plan
+                        , entry_name
+                        , outfname);
+                DestroyPlan(build_plan);
         END ELSE DestroyPlan(build_plan);
         Close(build_plan.linked_out);
         IF err THEN Halt(1);
