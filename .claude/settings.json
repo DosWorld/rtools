@@ -1,0 +1,16 @@
+{
+   "hooks" : {
+      "PostToolUse" : [
+         {
+            "hooks" : [
+               {
+                  "command" : "perl -MJSON::PP -e 'local $/; my $d = decode_json(<STDIN>); my $f = $d->{tool_input}{file_path}; exit 0 unless defined $f && -f $f && $f =~ m{(\\.(pas|asm|c|h|txt|md|bas)|/makefile)$}i; open my $i, \"<:raw\", $f or exit 0; my $t = <$i>; close $i; (my $n = $t) =~ s/\\r?\\n/\\r\\n/g; exit 0 if $n eq $t; open my $o, \">:raw\", $f or exit 0; print $o $n;'",
+                  "timeout" : 10,
+                  "type" : "command"
+               }
+            ],
+            "matcher" : "Write|Edit"
+         }
+      ]
+   }
+}
