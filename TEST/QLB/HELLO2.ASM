@@ -1,4 +1,3 @@
-; Test for RLINK qlb: data, bss and segment relocation inside a QuickLibrary.
         bits 16
         cpu 8086
         global  HELLO2
@@ -6,7 +5,6 @@
 
         segment .text
 
-; prints message from the data segment
 HELLO2: push    ds
         mov     ax, seg msg
         mov     ds, ax
@@ -16,7 +14,6 @@ HELLO2: push    ds
         pop     ds
         retf
 
-; counts calls (bss), prints message by pointer from the data segment
 COUNT:  push    ds
         mov     ax, seg counter
         mov     es, ax

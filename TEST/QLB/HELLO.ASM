@@ -1,6 +1,3 @@
-; Test for RLINK qlb: routine HELLO callable from QuickBASIC.
-; start is the entry-point: Pascal style far procedure, QB start-up/shut-down calls it
-; with the selector as parameter (it is also in CX), the procedure removes it with retf 2.
         bits 16
         cpu 8086
         global  start

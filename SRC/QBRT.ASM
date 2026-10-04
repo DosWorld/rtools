@@ -184,10 +184,13 @@ getproc:
 .done:  add     sp, 4
         push    ax
         push    dx
+        mov     ax, [0C2h]
+        or      ax, [0C4h]
+        jz      .nogw
         mov     bx, [bp+6]
         mov     di, 26
         call    far [0C2h]
-        pop     dx
+.nogw:  pop     dx
         pop     ax
         pop     es
         pop     di
