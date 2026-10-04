@@ -96,6 +96,7 @@ TRDFMETA = RECORD
 
         hdr_size    : DWORD;
         hdr_ofs     : DWORD;
+        qbimp       : BOOLEAN;
         linker      : TLINKDATA;
         next        : PRDFMETA;
 END;
@@ -469,6 +470,26 @@ BEGIN
         FindExportRdf := export;
 END;
 
+FUNCTION CountExports(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : INTEGER;
+VAR     n        : INTEGER;
+        exports  : PEXPORTS;
+        r        : PRDFMETA;
+        i        : INTEGER;
+BEGIN
+        n := 0;
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                exports := r^.linker.export;
+                WHILE exports <> NIL DO BEGIN
+                        FOR i := 1 TO exports^.export_count DO
+                                IF exports^.export[i].rec.name = name THEN Inc(n);
+                        exports := exports^.next;
+                END;
+                r := r^.next;
+        END;
+        CountExports := n;
+END;
+
 FUNCTION ResolveImports(VAR build_plan : IMAGE_BUILD_PLAN; rdf : PRDFMETA) : BOOLEAN;
 VAR     err      : BOOLEAN;
         r        : PRDFMETA;
@@ -488,7 +509,11 @@ BEGIN
                                 err := export = NIL;
                                 IF err THEN BEGIN
                                         System.Writeln('Could not resolve ', import^.import[i].rec.name);
-                                END ELSE IF NOT export^.rdf^.linker.linked THEN BEGIN
+                                END ELSE IF CountExports(build_plan, import^.import[i].rec.name) > 1 THEN BEGIN
+                                        System.Writeln('Warning: symbol ', import^.import[i].rec.name
+                                                , ' is defined more than once, using ', export^.rdf^.filename);
+                                END;
+                                IF (NOT err) AND (NOT export^.rdf^.linker.linked) THEN BEGIN
                                         err := ResolveImports(build_plan, export^.rdf);
                                 END;
                                 Inc(i);

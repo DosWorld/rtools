@@ -83,6 +83,11 @@ BEGIN
                 Reset(i);
 
                 err := NOT IsOpen(i) ;
+                IF (NOT err) AND ((r^.code_size > $10000) OR (r^.data_size > $10000)) THEN BEGIN
+                        System.Writeln(r^.filename, ': code or data segment is larger than 64K.');
+                        Close(i);
+                        err := TRUE;
+                END;
                 IF NOT err THEN BEGIN
                         Seek(i, r^.file_code);
                         r^.linker.hmz_code_seg := FilePos(code) SHR 4;
@@ -105,6 +110,10 @@ BEGIN
                 hdr.ip := start^.rec.offset;
         END;
 
+        IF (NOT err) AND ((FileSize(code) SHR 4) > $FFF0) THEN BEGIN
+                System.Writeln('Program is too large for MZ format.');
+                err := TRUE;
+        END;
         { calculate bss seg's and SS }
         IF NOT err THEN hdr.ss := FileSize(code) SHR 4;
         hdr.min_ext_par := hdr.ss;
@@ -116,6 +125,11 @@ BEGIN
                         GET_BSS(s, bss_size);
                 END;
                 bss_size := AlignValue(bss_size, $10);
+                IF (bss_size > $10000) OR ((hdr.ss + (bss_size SHR 4)) > $FFF0) THEN BEGIN
+                        System.Writeln(r^.filename, ': bss is too large for MZ format.');
+                        err := TRUE;
+                        BREAK;
+                END;
                 r^.linker.hmz_bss_seg := hdr.ss;
                 Inc(hdr.ss, bss_size SHR 4);
                 r := r^.next;
@@ -200,7 +214,6 @@ BEGIN
                 hdr.sign := MZ_SIGN;
                 hdr.header_par := FilePos(o) SHR 4;
                 BlockCopy(code, o, FileSize(code));
-                { pages count the whole file, header included }
                 hdr.blk_count := (FileSize(o) + $1FF) SHR 9;
                 hdr.lblk_size := FileSize(o) AND $1FF;
                 hdr.relocs_ofs := SizeOf(MZ_HEADER);
@@ -263,6 +276,11 @@ BEGIN
                 Reset(i);
 
                 err := NOT IsOpen(i) ;
+                IF (NOT err) AND ((r^.code_size > $10000) OR (r^.data_size > $10000)) THEN BEGIN
+                        System.Writeln(r^.filename, ': code or data segment is larger than 64K.');
+                        Close(i);
+                        err := TRUE;
+                END;
                 IF NOT err THEN BEGIN
                         Seek(i, r^.file_code);
                         r^.linker.smz_code_ofs := FilePos(code);
@@ -308,6 +326,14 @@ BEGIN
         END;
         bss_size := AlignValue(bss_size, $10) - FileSize(data);
         hdr.ss := smz_bss_seg + (bss_size SHR 4);
+        IF (NOT err) AND (FileSize(code) > $10000) THEN BEGIN
+                System.Writeln('Code is larger than 64K (small model).');
+                err := TRUE;
+        END;
+        IF (NOT err) AND (FileSize(data) + bss_size > $10000) THEN BEGIN
+                System.Writeln('Data and bss are larger than 64K (small model).');
+                err := TRUE;
+        END;
 
         { resolve segrelo }
         r := build_plan.rdfs;
@@ -410,7 +436,6 @@ BEGIN
                 BlockCopy(code, o, FileSize(code));
                 Seek(data, 0);
                 BlockCopy(data, o, FileSize(data));
-                { pages count the whole file, header included }
                 hdr.blk_count := (FileSize(o) + $1FF) SHR 9;
                 hdr.lblk_size := FileSize(o) AND $1FF;
                 hdr.relocs_ofs := SizeOf(MZ_HEADER);

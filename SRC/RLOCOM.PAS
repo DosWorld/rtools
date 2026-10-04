@@ -50,6 +50,7 @@ VAR     dst_ofs     : DWORD;
         jmp_instr   : ARRAY[0..3] OF BYTE;
         jmp_addr    : WORD;
         need_jmp    : BOOLEAN;
+        bss_total   : DWORD;
 
         err         : BOOLEAN;
 
@@ -106,7 +107,6 @@ BEGIN
 
         Seek(hdr, 0);
         err := err OR (NOT FindEntryPoint(hdr, FileSize(hdr), entry_name, ip));
-        { jump is needed only when entry point is not at the start of code }
         need_jmp := ip <> 0;
         Inc(ip, code_ofs);
 
@@ -114,6 +114,14 @@ BEGIN
                 Inc(ip, SizeOf(jmp_instr));
                 Inc(code_ofs, SizeOf(jmp_instr));
                 Inc(bss_ofs, SizeOf(jmp_instr));
+        END;
+
+        bss_total := 0;
+        Seek(hdr, 0);
+        WHILE RDF_LOOKUPREC(hdr, RREC_BSS, c) DO GET_BSS(c, bss_total);
+        IF (NOT err) AND (code_ofs + code_size + bss_total > $10000) THEN BEGIN
+                System.Writeln('Program is larger than 64K (COM).');
+                err := TRUE;
         END;
 
         Seek(hdr, 0);

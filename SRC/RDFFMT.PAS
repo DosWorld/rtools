@@ -167,6 +167,7 @@ VAR     nrt : CHAR;
         r   : BOOLEAN;
 BEGIN
         r := FALSE;
+        nrt := #0;
         IF NOT EOF(f) THEN BEGIN
                 RDF_READ_REC(f, nrt, rec);
                 r := nrt IN [rt1, rt2];
@@ -184,6 +185,7 @@ VAR     nrt : CHAR;
         r   : BOOLEAN;
 BEGIN
         r := FALSE;
+        nrt := #0;
         IF NOT EOF(f) THEN BEGIN
                 RDF_READ_REC(f, nrt, rec);
                 r := nrt IN [rt1, rt2, rt3];
@@ -395,9 +397,11 @@ BEGIN
         r := FALSE;
         WHILE NOT EOF(f) DO BEGIN
                 p := FilePos(f);
+                FillChar(modname[1], 255, #0);
                 BlockRead(f, modname[1], 255);
                 modname[0] := #0;
                 WHILE (modname[0] < #255) AND (modname[ORD(modname[0]) + 1] <> #0) DO Inc(modname[0]);
+                IF modname[0] = #255 THEN BREAK;
                 Seek(f, p + ORD(modname[0]) + 1);
                 IF modname[0] > #0 THEN
                         IF modname[1] <> '.' THEN BEGIN r := TRUE; BREAK; END;

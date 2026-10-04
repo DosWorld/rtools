@@ -48,68 +48,93 @@ BEGIN
         WriteLnErr(msg + ':' + fname);
 END;
 
-PROCEDURE rlib_create(VAR libname : STRING);
+FUNCTION rlib_create(VAR libname : STRING) : BOOLEAN;
 VAR     f : BFILE;
-        i : INTEGER;
 BEGIN
         Assign(f, libname);
         ReWrite(f);
         IF IsOpen(f) THEN BEGIN
                 RDL_CREATE(f);
                 Close(f);
+                rlib_create := FALSE;
+        END ELSE BEGIN
+                file_err(libname, f.ioResult);
+                rlib_create := TRUE;
         END;
 END;
 
-
-PROCEDURE rlib_add(VAR libname, filename, modname : STRING);
+FUNCTION rlib_add(VAR libname, filename, modname : STRING) : BOOLEAN;
 VAR     f, o  : BFILE;
+        err   : BOOLEAN;
 BEGIN
+        err := FALSE;
         IF Length(modname) > 63 THEN modname[0] := #63;
-        Assign(f, libname);
-        Reset(f);
-        IF GET_FILE_TYPE(f) <> FILE_RDL THEN BEGIN
-                System.writeln(libname, ' is not rdl');
-                Close(f);
+        IF (Length(modname) = 0) OR (modname[1] = '.') THEN BEGIN
+                System.writeln('Bad module name: ', modname);
+                err := TRUE;
         END;
-        Assign(o, filename);
-        Reset(o);
-        IF GET_FILE_TYPE(o) <> FILE_RDF THEN BEGIN
-                System.writeln(filename, ' is not rdf');
-                Close(o);
+        IF NOT err THEN BEGIN
+                Assign(f, libname);
+                Reset(f);
+                IF NOT IsOpen(f) THEN BEGIN
+                        file_err(libname, f.ioResult);
+                        err := TRUE;
+                END ELSE IF GET_FILE_TYPE(f) <> FILE_RDL THEN BEGIN
+                        System.writeln(libname, ' is not rdl');
+                        err := TRUE;
+                END;
         END;
-        IF IsOpen(f) AND IsOpen(o) THEN BEGIN
+        IF NOT err THEN BEGIN
+                Assign(o, filename);
+                Reset(o);
+                IF NOT IsOpen(o) THEN BEGIN
+                        file_err(filename, o.ioResult);
+                        err := TRUE;
+                END ELSE IF GET_FILE_TYPE(o) <> FILE_RDF THEN BEGIN
+                        System.writeln(filename, ' is not rdf');
+                        err := TRUE;
+                END;
+        END;
+        IF NOT err THEN BEGIN
                 RDL_APPEND_MODULE(f, modname);
                 Seek(o, 0);
                 BlockCopy(o, f, FileSize(o));
         END;
         IF IsOpen(f) THEN Close(f);
         IF IsOpen(o) THEN Close(o);
+        rlib_add := err;
 END;
 
-PROCEDURE rlib_list(VAR libname : STRING);
+FUNCTION rlib_list(VAR libname : STRING) : BOOLEAN;
 VAR     f        : BFILE;
         modsize  : DWORD;
         modstart : DWORD;
         modname  : STRING;
-        s        : STRING;
+        err      : BOOLEAN;
 BEGIN
+        err := FALSE;
         Assign(f, libname);
         Reset(f);
         IF NOT IsOpen(f) THEN BEGIN
                 file_err(libname, f.ioResult);
-        END ELSE IF GET_FILE_TYPE(f) = FILE_RDL THEN BEGIN
-                System.WriteLn('Offset' : 8, ' ', 'Size' : 8, ' Module');
-                WHILE RDL_NEXT_MODULE(f, modname) DO BEGIN
-                        modstart := FilePos(f);
-                        Seek(f, FilePos(f) + Length(RDOFF2_SIGN));
-                        modsize := ReadDword(f);
-                        System.WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
-                        Seek(f, FilePos(f) + modsize);
-                END;
+                err := TRUE;
         END ELSE BEGIN
-                System.writeln(libname, ' is not rdl');
+                IF GET_FILE_TYPE(f) = FILE_RDL THEN BEGIN
+                        System.WriteLn('Offset' : 8, ' ', 'Size' : 8, ' Module');
+                        WHILE RDL_NEXT_MODULE(f, modname) DO BEGIN
+                                modstart := FilePos(f);
+                                Seek(f, FilePos(f) + Length(RDOFF2_SIGN));
+                                modsize := ReadDword(f);
+                                System.WriteLn(modstart : 8, ' ', modsize : 8, ' ', modname);
+                                Seek(f, FilePos(f) + modsize);
+                        END;
+                END ELSE BEGIN
+                        System.writeln(libname, ' is not rdl');
+                        err := TRUE;
+                END;
+                Close(f);
         END;
-        Close(f);
+        rlib_list := err;
 END;
 
 CONST
@@ -129,6 +154,7 @@ VAR     myArgs   : TARGSTATE;
         filename : STRING;
         modname  : STRING;
         pcount   : INTEGER;
+        err      : BOOLEAN;
 BEGIN
         ArgsParse(myArgs, OPTIONS_DESC);
 
@@ -149,7 +175,9 @@ BEGIN
         WriteArgsErrors(myArgs);
         IF ArgsError(myArgs) THEN Halt(1);
 
-        IF cmd = ARG_CMD_CREATE THEN rlib_create(libname)
-        ELSE IF cmd = ARG_CMD_ADD THEN rlib_add(libname, filename, modname)
-        ELSE IF cmd = ARG_CMD_LIST THEN rlib_list(libname);
+        err := FALSE;
+        IF cmd = ARG_CMD_CREATE THEN err := rlib_create(libname)
+        ELSE IF cmd = ARG_CMD_ADD THEN err := rlib_add(libname, filename, modname)
+        ELSE IF cmd = ARG_CMD_LIST THEN err := rlib_list(libname);
+        IF err THEN Halt(1);
 END.

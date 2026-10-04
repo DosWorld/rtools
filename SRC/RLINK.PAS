@@ -50,7 +50,11 @@ VAR     r        : PRDFMETA;
         mod_size : DWORD;
         hdr_size : DWORD;
         rec      : RDF_SEG;
+        have_cs  : BOOLEAN;
+        have_ds  : BOOLEAN;
 BEGIN
+        have_cs := FALSE;
+        have_ds := FALSE;
         Seek(src, FilePos(src) + 6);
         mod_size := ReadDWord(src);
         hdr_size := ReadDWord(src);
@@ -67,14 +71,20 @@ BEGIN
                         r^.file_code := FilePos(src);
                         r^.code_size := rec.seglen;
                         r^.code_segnum := rec.segnum;
+                        have_cs := TRUE;
                         Seek(src, FilePos(src) + rec.seglen);
                 END ELSE IF rec.segtype = RDFDS THEN BEGIN
                         r^.file_data := FilePos(src);
                         r^.data_size := rec.seglen;
                         r^.data_segnum := rec.segnum;
+                        have_ds := TRUE;
                         Seek(src, FilePos(src) + rec.seglen);
                 END;
         END;
+        IF NOT have_cs THEN BEGIN
+                IF r^.data_segnum = 0 THEN r^.code_segnum := 1 ELSE r^.code_segnum := 0;
+        END;
+        IF NOT have_ds THEN r^.data_segnum := r^.code_segnum + 1;
         r^.bss_segnum := r^.code_segnum;
         IF r^.bss_segnum < r^.data_segnum THEN r^.bss_segnum := r^.data_segnum;
         Inc(r^.bss_segnum);
@@ -88,6 +98,12 @@ VAR     ft       : RDF_FILE_TYPE;
 BEGIN
         Assign(i, fname);
         Reset(i);
+        IF NOT IsOpen(i) THEN BEGIN
+                System.Writeln('Could not open ', fname, '.');
+                err := TRUE;
+                GetRdlMetaInfo := root;
+                EXIT;
+        END;
         ft := GET_FILE_TYPE(i);
         IF ft = FILE_RDF THEN BEGIN
                 root := GetRdfMetaInfo(root, i, hdr);
@@ -95,7 +111,10 @@ BEGIN
                 WHILE RDL_NEXT_MODULE(i, mod_name) DO BEGIN
                         root := GetRdfMetaInfo(root, i, hdr);
                 END;
-        END ELSE err := TRUE;
+        END ELSE BEGIN
+                System.Writeln(fname, ' is not rdf or rdl.');
+                err := TRUE;
+        END;
         Close(i);
         GetRdlMetaInfo := root;
 END;
@@ -114,7 +133,7 @@ BEGIN
                 i := 1;
                 IF FileExists(bname) THEN BEGIN
                         fname := bname;
-                END ELSE WHILE i < l DO BEGIN
+                END ELSE WHILE i <= l DO BEGIN
                         path := '';
                         t := i;
                         WHILE (t <= l) AND (rlib[t] <> ';') DO BEGIN
@@ -182,14 +201,16 @@ ARG_ZRDX   = 'zrdx';
 ARG_HX     = 'hx';
 ARG_WINPE  = 'winpe';
 ARG_STACK  = 's';
+ARG_NONAMES = 'nonames';
 LIB_ENV    = 'RLIB';
 
-OPTIONS_DESC : ARRAY[0..14] OF TOPT = (
+OPTIONS_DESC : ARRAY[0..15] OF TOPT = (
 (name: ARG_OUTPUT; otype: OPTSTR;  help: 'Set output file name.'),
 (name: ARG_ORG;    otype: OPTSTR;  help: 'Set code start offset for COM output.'; default:'0x0100'),
 (name: ARG_ENTRY;  otype: OPTSTR;  help: 'Set entry-point name.'; default:'start'),
 (name: ARG_STACK;  otype: OPTSTR;  help: 'Set stack size in KB.'; default:'8'),
 (name: ARG_BSS;    otype: OPTBOOL; help: 'Reserve BSS-memory for COM/RDF output.'),
+(name: ARG_NONAMES; otype: OPTBOOL; help: 'QLB: leave the CODE table empty.'),
 (name: ARG_ZRDX;   otype: OPTBOOL; help: 'Bind ZRDX Dos-Extender to LE file.'),
 (name: ARG_HX;     otype: OPTBOOL; help: 'Bind HX Dos-Extender stub to PE file.'),
 (name: ARG_RDF;    otype: OPTCMD;  help: 'Link RDF file. Merge all segments into one code segment.'),
@@ -217,6 +238,8 @@ VAR     myArgs        : TARGSTATE;
         strict_import : BOOLEAN;
         rlib          : STRING;
         r             : PRDFMETA;
+        qbi           : BFILE;
+        qbi_open      : BOOLEAN;
 BEGIN
         ArgsParse(myArgs, OPTIONS_DESC);
 
@@ -240,11 +263,16 @@ BEGIN
         {$ENDIF}
 
         cmd := GetCmd(myArgs);
+        IF (bin_ss < 0) OR (((cmd = ARG_COM) OR (cmd = ARG_MZS) OR (cmd = ARG_MZL)) AND (bin_ss > 64)) THEN BEGIN
+                System.Writeln('Bad stack size (COM, MZ: 0..64 Kb).');
+                Halt(1);
+        END;
         bin_ss := bin_ss * 1024;
 
         FillChar(build_plan, SizeOf(IMAGE_BUILD_PLAN), #0);
         ReWriteTemp(build_plan.hdr);
-        err := FALSE;
+        err := NOT IsOpen(build_plan.hdr);
+        IF err THEN System.Writeln('Could not create temporary file (check TMP/TEMP).');
         arg_count := ArgsCount(myArgs);
         i := 1;
         WHILE (i <= arg_count) AND (NOT err) DO BEGIN
@@ -253,6 +281,17 @@ BEGIN
                                 , GetArgsStr(myArgs, i)
                                 , build_plan.hdr, err);
                 Inc(i);
+        END;
+        qbi_open := FALSE;
+        IF (NOT err) AND (cmd = ARG_QLB) THEN BEGIN
+                QbeOptNames := NOT GetOptBool(myArgs, ARG_NONAMES);
+                IF QbeBuildImports(build_plan, qbi, err) THEN BEGIN
+                        qbi_open := TRUE;
+                        IF GET_FILE_TYPE(qbi) = FILE_RDF THEN BEGIN
+                                build_plan.rdfs := GetRdfMetaInfo(build_plan.rdfs, qbi, build_plan.hdr);
+                                build_plan.rdfs^.qbimp := TRUE;
+                        END ELSE err := TRUE;
+                END;
         END;
         IF cmd = ARG_DOSPE THEN strict_import := FALSE ELSE strict_import := TRUE;
         IF NOT err THEN err := CreateBuildPlan(build_plan, entry_name, strict_import);
@@ -270,6 +309,10 @@ BEGIN
         {$ENDIF}
         {$IFNDEF DEBUG}
         ReWriteTemp(build_plan.linked_out);
+        IF NOT IsOpen(build_plan.linked_out) THEN BEGIN
+                System.Writeln('Could not create temporary file (check TMP/TEMP).');
+                err := TRUE;
+        END;
         {$ENDIF}
         FreeOutOfPlan(build_plan);
         IF (NOT err) AND (cmd = ARG_MZL) THEN BEGIN
@@ -323,5 +366,6 @@ BEGIN
                 DestroyPlan(build_plan);
         END ELSE DestroyPlan(build_plan);
         Close(build_plan.linked_out);
+        IF qbi_open THEN Close(qbi);
         IF err THEN Halt(1);
 END.
