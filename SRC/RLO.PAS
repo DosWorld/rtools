@@ -30,37 +30,71 @@ USES system2, rdffmt;
 
 CONST
 REC_IN_PLAN = 64;
+EXP_MAX     = 3000;
+IMP_MAX     = 4000;
+SYM_PAGE    = 256;
+SYM_BUCKETS = 4096;
 
 TYPE
 PRDFMETA = ^TRDFMETA;
 
+PNAME = ^RDFNAME;
+PFNAME = ^STRING;
+
+TSYM_EXP = RECORD
+        flags  : BYTE;
+        seg    : BYTE;
+        offset : DWORD;
+        sym    : WORD;
+END;
+
+TSYM_IMP = RECORD
+        flags : BYTE;
+        seg   : WORD;
+        sym   : WORD;
+END;
+
 PLINK_EXPORT = ^TLINK_EXPORT;
 TLINK_EXPORT = RECORD
-        rec : REXP_REC;
-        rdf : PRDFMETA;
+        rec   : TSYM_EXP;
+        rdf   : PRDFMETA;
+        hnext : PLINK_EXPORT;
 END;
+
+PSYMNODE = ^TSYMNODE;
+TSYMNODE = RECORD
+        hash : WORD;
+        next : WORD;
+        name : PNAME;
+        exp  : PLINK_EXPORT;
+END;
+
+PSYMPAGE = ^TSYMPAGE;
+TSYMPAGE = ARRAY [0..SYM_PAGE - 1] OF TSYMNODE;
+PSYMBUCK = ^TSYMBUCK;
+TSYMBUCK = ARRAY [0..SYM_BUCKETS - 1] OF WORD;
 
 PEXPORTS = ^TEXPORTS;
 TEXPORTS = RECORD
-        export       : ARRAY [1..REC_IN_PLAN] OF TLINK_EXPORT;
         export_count : WORD;
+        cap          : WORD;
         next         : PEXPORTS;
+        export       : ARRAY [1..EXP_MAX] OF TLINK_EXPORT;
 END;
 
 PLINK_IMPORT = ^TLINK_IMPORT;
 TLINK_IMPORT = RECORD
-        rec     : RIMP_REC;
+        rec     : TSYM_IMP;
         export  : PLINK_EXPORT;
-        newrseg : WORD;
-        resolv  : BOOLEAN;
         ext     : BOOLEAN;
 END;
 
 PIMPORTS = ^TIMPORTS;
 TIMPORTS = RECORD
-        import       : ARRAY [1..REC_IN_PLAN] OF TLINK_IMPORT;
         import_count : WORD;
+        cap          : WORD;
         next         : PIMPORTS;
+        import       : ARRAY [1..IMP_MAX] OF TLINK_IMPORT;
 END;
 
 TLINKDATA = RECORD
@@ -80,12 +114,15 @@ TLINKDATA = RECORD
         hmz_data_size : WORD;
         hmz_bss_seg   : WORD;
         hmz_bss_size  : WORD;
+        map_seg       : ARRAY [0..2] OF DWORD;
+        map_ofs       : ARRAY [0..2] OF DWORD;
 END;
 
 TEXTIMPORT = FUNCTION(VAR name : RDFNAME) : BOOLEAN;
 
 TRDFMETA = RECORD
-        filename    : STRING;
+        filename    : PFNAME;
+        modname     : PNAME;
         file_code   : DWORD;
         file_data   : DWORD;
         code_size   : DWORD;
@@ -95,6 +132,7 @@ TRDFMETA = RECORD
         bss_segnum  : WORD;
         code_segnum : WORD;
 
+        seq         : WORD;
         hdr_size    : DWORD;
         hdr_ofs     : DWORD;
         qbimp       : BOOLEAN;
@@ -108,23 +146,51 @@ IMAGE_BUILD_PLAN = RECORD
         linked_out  : BFILE;
 END;
 
+CONST
+MAP_FLAT = 0;
+MAP_SEG  = 1;
+
 VAR
+SymPages   : ARRAY [0..255] OF PSYMPAGE;
+SymCount   : WORD;
+SymBuck    : PSYMBUCK;
 ExtImport   : TEXTIMPORT;
 ExtImportOn : BOOLEAN;
+LayCode    : DWORD;
+LayData    : DWORD;
+LayBss     : DWORD;
+MapKind    : BYTE;
+MapBase    : ARRAY [0..2] OF DWORD;
+MapImage   : DWORD;
+MapSegNo   : ARRAY [0..2] OF LONGINT;
+MapDigits  : BYTE;
 
 FUNCTION AlignValue(value : DWORD; align : DWORD) : DWORD;
+FUNCTION AllocZero(size : WORD) : POINTER;
+FUNCTION NewFileName(VAR s : STRING) : PFNAME;
+FUNCTION NewName(VAR name : RDFNAME) : PNAME;
+FUNCTION NameHash(VAR name : RDFNAME) : WORD;
+FUNCTION SymFind(VAR name : RDFNAME) : WORD;
+FUNCTION SymAdd(VAR name : RDFNAME) : WORD;
+FUNCTION SymName(id : WORD) : PNAME;
+FUNCTION ModLabel(r : PRDFMETA) : STRING;
 FUNCTION ReadRDF(VAR src, dst_headers, dst_code, dst_data : BFILE; VAR code_segnum, data_segnum, bss_segnum : WORD) : BOOLEAN;
-FUNCTION FindEntryPoint(hdr : BFILE; hdr_size : DWORD; VAR name : RDFNAME; VAR ip : DWORD) : BOOLEAN;
+FUNCTION FindEntryPoint(VAR hdr : BFILE; hdr_size : DWORD; VAR name : RDFNAME; VAR ip : DWORD) : BOOLEAN;
 FUNCTION DisableRecs(VAR hdr : BFILE; rtype : CHAR) : BOOLEAN;
 FUNCTION DisableRelocsWidth(VAR hdr : BFILE; width : BYTE) : BOOLEAN;
 PROCEDURE IncMem(VAR f : BFile; width : BYTE; ofs, value : DWORD);
 PROCEDURE SetMem(VAR f : BFile; width : BYTE; ofs, value : DWORD);
 FUNCTION MergeCodeDataBss(VAR src, dst : BFile; merge_bss : BOOLEAN) : BOOLEAN;
 
-FUNCTION FindImportInBuildPlan(import : PIMPORTS; name : RDFNAME; segnum : WORD) : BOOLEAN;
+FUNCTION FindImportInBuildPlan(import : PIMPORTS; sym : WORD; segnum : WORD) : BOOLEAN;
 FUNCTION FindExportRdf(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : PLINK_EXPORT;
 FUNCTION ResolveImports(VAR build_plan : IMAGE_BUILD_PLAN; rdf : PRDFMETA) : BOOLEAN;
 FUNCTION LookupImportByRSeg(r : PRDFMETA; rseg : WORD) : PLINK_IMPORT;
+FUNCTION AreaKind(r : PRDFMETA; seg : WORD) : INTEGER;
+FUNCTION HmzSegOf(r : PRDFMETA; k : INTEGER) : WORD;
+FUNCTION ResolveKind(r : PRDFMETA; rseg : WORD; VAR er : PRDFMETA; VAR k : INTEGER) : BOOLEAN;
+PROCEDURE DropFile(VAR f : BFILE);
+PROCEDURE AbortGen(VAR o, f1, f2, f3, f4 : BFILE);
 
 FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME) : BOOLEAN;
 PROCEDURE FreeOutOfPlan(VAR build_plan : IMAGE_BUILD_PLAN);
@@ -140,6 +206,142 @@ BEGIN
         n := value DIV align;
         IF value MOD align <> 0 THEN Inc(n);
         AlignValue := n * align;
+END;
+
+FUNCTION AllocZero(size : WORD) : POINTER;
+VAR     p : POINTER;
+BEGIN
+        IF MaxAvail < size THEN BEGIN
+                System.Writeln('Not enough memory.');
+                Halt(1);
+        END;
+        GetMem(p, size);
+        FillChar(p^, size, #0);
+        AllocZero := p;
+END;
+
+FUNCTION NewFileName(VAR s : STRING) : PFNAME;
+VAR     p : PFNAME;
+BEGIN
+        p := PFNAME(AllocZero(Length(s) + 1));
+        Move(s, p^, Length(s) + 1);
+        NewFileName := p;
+END;
+
+FUNCTION NewName(VAR name : RDFNAME) : PNAME;
+VAR     p : PNAME;
+BEGIN
+        p := PNAME(AllocZero(Length(name) + 1));
+        Move(name, p^, Length(name) + 1);
+        NewName := p;
+END;
+
+FUNCTION NameHash(VAR name : RDFNAME) : WORD;
+VAR     h : WORD;
+        i : INTEGER;
+BEGIN
+        h := 5381;
+        FOR i := 1 TO Length(name) DO h := (h * 33) XOR ORD(name[i]);
+        NameHash := h;
+END;
+
+FUNCTION SymNode(id : WORD) : PSYMNODE;
+BEGIN
+        SymNode := @SymPages[id SHR 8]^[id AND (SYM_PAGE - 1)];
+END;
+
+FUNCTION SymFind(VAR name : RDFNAME) : WORD;
+VAR     h  : WORD;
+        id : WORD;
+        n  : PSYMNODE;
+BEGIN
+        SymFind := 0;
+        IF SymBuck = NIL THEN EXIT;
+        h := NameHash(name);
+        id := SymBuck^[h AND (SYM_BUCKETS - 1)];
+        WHILE id <> 0 DO BEGIN
+                n := SymNode(id);
+                IF (n^.hash = h) AND (n^.name^ = name) THEN BEGIN
+                        SymFind := id;
+                        EXIT;
+                END;
+                id := n^.next;
+        END;
+END;
+
+FUNCTION SymAdd(VAR name : RDFNAME) : WORD;
+VAR     id : WORD;
+        n  : PSYMNODE;
+        b  : WORD;
+BEGIN
+        id := SymFind(name);
+        IF id = 0 THEN BEGIN
+                IF SymBuck = NIL THEN SymBuck := PSYMBUCK(AllocZero(SizeOf(TSYMBUCK)));
+                IF SymCount = $FFFF THEN BEGIN
+                        System.Writeln('Too many symbols.');
+                        Halt(1);
+                END;
+                Inc(SymCount);
+                id := SymCount;
+                IF SymPages[id SHR 8] = NIL THEN SymPages[id SHR 8] := PSYMPAGE(AllocZero(SizeOf(TSYMPAGE)));
+                n := SymNode(id);
+                n^.hash := NameHash(name);
+                n^.name := NewName(name);
+                b := n^.hash AND (SYM_BUCKETS - 1);
+                n^.next := SymBuck^[b];
+                SymBuck^[b] := id;
+        END;
+        SymAdd := id;
+END;
+
+FUNCTION SymName(id : WORD) : PNAME;
+BEGIN
+        SymName := SymNode(id)^.name;
+END;
+
+PROCEDURE SymFree;
+VAR     i : WORD;
+BEGIN
+        FOR i := 1 TO SymCount DO FreeMem(SymNode(i)^.name, Length(SymNode(i)^.name^) + 1);
+        FOR i := 0 TO 255 DO IF SymPages[i] <> NIL THEN BEGIN
+                FreeMem(SymPages[i], SizeOf(TSYMPAGE));
+                SymPages[i] := NIL;
+        END;
+        IF SymBuck <> NIL THEN FreeMem(SymBuck, SizeOf(TSYMBUCK));
+        SymBuck := NIL;
+        SymCount := 0;
+END;
+
+FUNCTION ModLabel(r : PRDFMETA) : STRING;
+BEGIN
+        IF r^.modname <> NIL THEN ModLabel := r^.filename^ + '(' + r^.modname^ + ')'
+        ELSE ModLabel := r^.filename^;
+END;
+
+PROCEDURE HashAdd(e : PLINK_EXPORT);
+VAR     n : PSYMNODE;
+BEGIN
+        n := SymNode(e^.rec.sym);
+        e^.hnext := n^.exp;
+        n^.exp := e;
+END;
+
+PROCEDURE HashRebuild(VAR build_plan : IMAGE_BUILD_PLAN);
+VAR     r       : PRDFMETA;
+        exports : PEXPORTS;
+        i       : INTEGER;
+        id      : WORD;
+BEGIN
+        FOR id := 1 TO SymCount DO SymNode(id)^.exp := NIL;
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                exports := r^.linker.export;
+                WHILE exports <> NIL DO BEGIN
+                        FOR i := 1 TO exports^.export_count DO HashAdd(@exports^.export[i]);
+                        exports := exports^.next;
+                END;
+                r := r^.next;
+        END;
 END;
 
 FUNCTION ReadRDF(VAR src, dst_headers, dst_code, dst_data : BFILE; VAR code_segnum, data_segnum, bss_segnum : WORD) : BOOLEAN;
@@ -176,7 +378,7 @@ BEGIN
         ReadRDF := NOT err;
 END;
 
-FUNCTION FindEntryPoint(hdr : BFILE; hdr_size : DWORD; VAR name : RDFNAME; VAR ip : DWORD) : BOOLEAN;
+FUNCTION FindEntryPoint(VAR hdr : BFILE; hdr_size : DWORD; VAR name : RDFNAME; VAR ip : DWORD) : BOOLEAN;
 VAR     str   : STRING;
         rec   : REXP_REC;
         find  : BOOLEAN;
@@ -254,7 +456,6 @@ VAR     new_headers : BFile;
         rec         : RRELOC_REC;
         grec        : REXP_REC;
         irec        : RIMP_REC;
-        nrec        : RNAME_REC;
         err         : BOOLEAN;
 
         code        : BFILE;
@@ -425,7 +626,7 @@ BEGIN
         MergeCodeDataBss := err;
 END;
 
-FUNCTION FindImportInBuildPlan(import : PIMPORTS; name : RDFNAME; segnum : WORD) : BOOLEAN;
+FUNCTION FindImportInBuildPlan(import : PIMPORTS; sym : WORD; segnum : WORD) : BOOLEAN;
 VAR     r : BOOLEAN;
         i : INTEGER;
 BEGIN
@@ -433,14 +634,11 @@ BEGIN
         WHILE (import <> NIL) AND (NOT r) DO BEGIN
                 i := 1;
                 WHILE i <= import^.import_count DO BEGIN
-                        IF import^.import[i].rec.seg = segnum THEN BEGIN
+                        IF (import^.import[i].rec.seg = segnum)
+                                OR ((sym <> 0) AND (import^.import[i].rec.sym = sym)) THEN BEGIN
                                 r := TRUE;
                                 BREAK;
-                        END ELSE IF import^.import[i].rec.name[0] = name[0] THEN
-                                IF import^.import[i].rec.name = name THEN BEGIN
-                                        r := TRUE;
-                                        BREAK;
-                                END;
+                        END;
                         Inc(i);
                 END;
                 import := import^.next;
@@ -448,59 +646,39 @@ BEGIN
         FindImportInBuildPlan := r;
 END;
 
-FUNCTION FindExportRdf(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : PLINK_EXPORT;
-VAR     export   : PLINK_EXPORT;
-        found    : PLINK_EXPORT;
-        exports  : PEXPORTS;
-        r        : PRDFMETA;
-        i        : INTEGER;
+FUNCTION FindExportSym(id : WORD) : PLINK_EXPORT;
+VAR     found : PLINK_EXPORT;
+        e     : PLINK_EXPORT;
 BEGIN
-        export := NIL;
-        r := build_plan.rdfs;
-        WHILE r <> NIL DO BEGIN
-                found := NIL;
-                exports := r^.linker.export;
-                WHILE (exports <> NIL) AND (found = NIL) DO BEGIN
-                        i := 1;
-                        WHILE i <= exports^.export_count DO BEGIN
-                                IF exports^.export[i].rec.name[0] = name[0] THEN
-                                        IF exports^.export[i].rec.name = name THEN BEGIN
-                                                found := @exports^.export[i];
-                                                BREAK;
-                                        END;
-                                Inc(i);
-                        END;
-                        exports := exports^.next;
-                END;
-                IF found <> NIL THEN export := found;
-                r := r^.next;
+        found := NIL;
+        IF id <> 0 THEN e := SymNode(id)^.exp ELSE e := NIL;
+        WHILE e <> NIL DO BEGIN
+                IF (found = NIL) OR (e^.rdf^.seq > found^.rdf^.seq) THEN found := e;
+                e := e^.hnext;
         END;
-        FindExportRdf := export;
+        FindExportSym := found;
 END;
 
-FUNCTION CountExports(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : INTEGER;
-VAR     n        : INTEGER;
-        exports  : PEXPORTS;
-        r        : PRDFMETA;
-        i        : INTEGER;
+FUNCTION FindExportRdf(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : PLINK_EXPORT;
+BEGIN
+        FindExportRdf := FindExportSym(SymFind(name));
+END;
+
+FUNCTION CountExports(id : WORD) : INTEGER;
+VAR     n : INTEGER;
+        e : PLINK_EXPORT;
 BEGIN
         n := 0;
-        r := build_plan.rdfs;
-        WHILE r <> NIL DO BEGIN
-                exports := r^.linker.export;
-                WHILE exports <> NIL DO BEGIN
-                        FOR i := 1 TO exports^.export_count DO
-                                IF exports^.export[i].rec.name = name THEN Inc(n);
-                        exports := exports^.next;
-                END;
-                r := r^.next;
+        IF id <> 0 THEN e := SymNode(id)^.exp ELSE e := NIL;
+        WHILE e <> NIL DO BEGIN
+                Inc(n);
+                e := e^.hnext;
         END;
         CountExports := n;
 END;
 
 FUNCTION ResolveImports(VAR build_plan : IMAGE_BUILD_PLAN; rdf : PRDFMETA) : BOOLEAN;
 VAR     err      : BOOLEAN;
-        r        : PRDFMETA;
         import   : PIMPORTS;
         export   : PLINK_EXPORT;
         i : INTEGER;
@@ -512,18 +690,18 @@ BEGIN
                 WHILE (NOT err) AND (import <> NIL) DO BEGIN
                         i := 1;
                         WHILE (NOT err) AND (i <= import^.import_count) DO BEGIN
-                                export := FindExportRdf(build_plan, import^.import[i].rec.name);
+                                export := FindExportSym(import^.import[i].rec.sym);
                                 import^.import[i].export := export;
                                 import^.import[i].ext := FALSE;
                                 IF (export = NIL) AND ExtImportOn THEN
-                                        import^.import[i].ext := ExtImport(import^.import[i].rec.name);
+                                        import^.import[i].ext := ExtImport(SymName(import^.import[i].rec.sym)^);
                                 err := (export = NIL) AND (NOT import^.import[i].ext);
                                 IF err THEN BEGIN
-                                        System.Writeln('Could not resolve ', import^.import[i].rec.name);
+                                        System.Writeln('Could not resolve ', SymName(import^.import[i].rec.sym)^);
                                 END ELSE IF (export <> NIL)
-                                        AND (CountExports(build_plan, import^.import[i].rec.name) > 1) THEN BEGIN
-                                        System.Writeln('Warning: symbol ', import^.import[i].rec.name
-                                                , ' is defined more than once, using ', export^.rdf^.filename);
+                                        AND (CountExports(import^.import[i].rec.sym) > 1) THEN BEGIN
+                                        System.Writeln('Warning: symbol ', SymName(import^.import[i].rec.sym)^
+                                                , ' is defined more than once, using ', ModLabel(export^.rdf));
                                 END;
                                 IF (NOT err) AND (export <> NIL) AND (NOT export^.rdf^.linker.linked) THEN BEGIN
                                         err := ResolveImports(build_plan, export^.rdf);
@@ -534,6 +712,26 @@ BEGIN
                 END;
         END;
         ResolveImports := err;
+END;
+
+FUNCTION ExpChunkSize(n : WORD) : WORD;
+BEGIN
+        ExpChunkSize := SizeOf(TEXPORTS) - (EXP_MAX - n) * SizeOf(TLINK_EXPORT);
+END;
+
+FUNCTION ImpChunkSize(n : WORD) : WORD;
+BEGIN
+        ImpChunkSize := SizeOf(TIMPORTS) - (IMP_MAX - n) * SizeOf(TLINK_IMPORT);
+END;
+
+FUNCTION CountRecs(VAR build_plan : IMAGE_BUILD_PLAN; r : PRDFMETA; rtype : CHAR) : WORD;
+VAR     s : STRING;
+        n : WORD;
+BEGIN
+        n := 0;
+        Seek(build_plan.hdr, r^.hdr_ofs);
+        WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, rtype, s) DO Inc(n);
+        CountRecs := n;
 END;
 
 FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME) : BOOLEAN;
@@ -549,36 +747,56 @@ VAR     err      : BOOLEAN;
         p        : DWORD;
         find     : BOOLEAN;
         rtype    : CHAR;
+        slot     : PLINK_EXPORT;
+        islot    : PLINK_IMPORT;
+        entry    : PLINK_EXPORT;
+        nexp     : WORD;
+        ncap     : WORD;
+        nimp     : WORD;
+        nfull    : BOOLEAN;
+        seq      : WORD;
 BEGIN
         err := build_plan.rdfs = NIL;
         startRdf := NIL;
+        seq := 0;
 
-        { build export tables and lookup entry point }
         r := build_plan.rdfs;
         WHILE r <> NIL DO BEGIN
+                Inc(seq);
+                r^.seq := seq;
+                nexp := CountRecs(build_plan, r, RREC_GLOBAL);
                 Seek(build_plan.hdr, r^.hdr_ofs);
                 WHILE RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_GLOBAL, s) DO BEGIN
                         GET_EXPORT_REC(s, grec);
-                        IF r^.linker.export = NIL THEN BEGIN
-                                GetMem(export, SizeOf(TEXPORTS));
-                                FillChar(export^, SizeOf(TEXPORTS), #0);
-                                r^.linker.export := export;
-                        END;
-                        IF r^.linker.export^.export_count = REC_IN_PLAN THEN BEGIN
-                                GetMem(export, SizeOf(TEXPORTS));
-                                FillChar(export^, SizeOf(TEXPORTS), #0);
+                        nfull := r^.linker.export = NIL;
+                        IF NOT nfull THEN nfull := r^.linker.export^.export_count = r^.linker.export^.cap;
+                        IF nfull THEN BEGIN
+                                IF nexp > EXP_MAX THEN ncap := EXP_MAX ELSE ncap := nexp;
+                                export := PEXPORTS(AllocZero(ExpChunkSize(ncap)));
+                                export^.cap := ncap;
                                 export^.next := r^.linker.export;
                                 r^.linker.export := export;
                         END;
                         Inc(r^.linker.export^.export_count);
-                        r^.linker.export^.export[r^.linker.export^.export_count].rec := grec;
-                        r^.linker.export^.export[r^.linker.export^.export_count].rdf := r;
-                        IF grec.name = entry_name THEN startRdf := r;
+                        slot := @r^.linker.export^.export[r^.linker.export^.export_count];
+                        slot^.rec.flags := grec.flags;
+                        slot^.rec.seg := grec.seg;
+                        slot^.rec.offset := grec.offset;
+                        slot^.rec.sym := SymAdd(grec.name);
+                        slot^.rdf := r;
+                        HashAdd(slot);
+                        Dec(nexp);
                 END;
                 r := r^.next;
         END;
-        IF startRdf = NIL THEN System.Writeln('Entry point ', entry_name, ' not found.');
-        err := err OR (startRdf = NIL);
+        entry := FindExportRdf(build_plan, entry_name);
+        IF entry = NIL THEN System.Writeln('Entry point ', entry_name, ' not found.')
+        ELSE IF entry^.rec.seg <> entry^.rdf^.code_segnum THEN BEGIN
+                System.Writeln('Entry point ', entry_name, ' is not in the code segment.');
+                entry := NIL;
+        END;
+        err := err OR (entry = NIL);
+        IF entry <> NIL THEN startRdf := entry^.rdf;
 
         { build import tables }
         r := build_plan.rdfs;
@@ -589,7 +807,7 @@ BEGIN
                         WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, rtype, s) DO BEGIN
                                 GET_RELOC_REC(s, rrec);
                                 IF rrec.rseg <= r^.bss_segnum THEN CONTINUE;
-                                IF FindImportInBuildPlan(r^.linker.import, '', rrec.rseg) THEN CONTINUE;
+                                IF FindImportInBuildPlan(r^.linker.import, 0, rrec.rseg) THEN CONTINUE;
                                 p := FilePos(build_plan.hdr);
                                 find := FALSE;
                                 Seek(build_plan.hdr, r^.hdr_ofs);
@@ -606,19 +824,21 @@ BEGIN
                                         err := TRUE;
                                         CONTINUE;
                                 END;
-                                IF r^.linker.import = NIL THEN BEGIN
-                                        GetMem(import, SizeOf(TIMPORTS));
-                                        FillChar(import^, SizeOf(TIMPORTS), #0);
-                                        r^.linker.import := import;
-                                END;
-                                IF r^.linker.import^.import_count = REC_IN_PLAN THEN BEGIN
-                                        GetMem(import, SizeOf(TIMPORTS));
-                                        FillChar(import^, SizeOf(TIMPORTS), #0);
+                                nfull := r^.linker.import = NIL;
+                                IF NOT nfull THEN nfull := r^.linker.import^.import_count = r^.linker.import^.cap;
+                                IF nfull THEN BEGIN
+                                        nimp := CountRecs(build_plan, r, RREC_IMPORT);
+                                        IF nimp > IMP_MAX THEN nimp := IMP_MAX;
+                                        import := PIMPORTS(AllocZero(ImpChunkSize(nimp)));
+                                        import^.cap := nimp;
                                         import^.next := r^.linker.import;
                                         r^.linker.import := import;
                                 END;
                                 Inc(r^.linker.import^.import_count);
-                                r^.linker.import^.import[r^.linker.import^.import_count].rec := irec;
+                                islot := @r^.linker.import^.import[r^.linker.import^.import_count];
+                                islot^.rec.flags := irec.flags;
+                                islot^.rec.seg := irec.seg;
+                                islot^.rec.sym := SymAdd(irec.name);
                                 Seek(build_plan.hdr, p);
                         END;
                         IF rtype = RREC_RELOC THEN rtype := RREC_SEGRELO ELSE rtype := #0;
@@ -650,6 +870,58 @@ BEGIN
         LookupImportByRSeg := import;
 END;
 
+FUNCTION AreaKind(r : PRDFMETA; seg : WORD) : INTEGER;
+BEGIN
+        IF seg = r^.code_segnum THEN AreaKind := 0
+        ELSE IF seg = r^.data_segnum THEN AreaKind := 1
+        ELSE IF seg = r^.bss_segnum THEN AreaKind := 2
+        ELSE AreaKind := 3;
+END;
+
+FUNCTION HmzSegOf(r : PRDFMETA; k : INTEGER) : WORD;
+BEGIN
+        CASE k OF
+        0 : HmzSegOf := r^.linker.hmz_code_seg;
+        1 : HmzSegOf := r^.linker.hmz_data_seg;
+        2 : HmzSegOf := r^.linker.hmz_bss_seg;
+        ELSE HmzSegOf := 0;
+        END;
+END;
+
+FUNCTION ResolveKind(r : PRDFMETA; rseg : WORD; VAR er : PRDFMETA; VAR k : INTEGER) : BOOLEAN;
+VAR     import : PLINK_IMPORT;
+BEGIN
+        er := r;
+        k := AreaKind(r, rseg);
+        ResolveKind := TRUE;
+        IF k <= 2 THEN EXIT;
+        import := LookupImportByRSeg(r, rseg);
+        IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
+                System.Writeln(r^.filename^, ': unresolved import.');
+                ResolveKind := FALSE;
+                EXIT;
+        END;
+        er := import^.export^.rdf;
+        k := AreaKind(er, import^.export^.rec.seg);
+END;
+
+PROCEDURE DropFile(VAR f : BFILE);
+BEGIN
+        IF IsOpen(f) THEN Close(f);
+END;
+
+PROCEDURE AbortGen(VAR o, f1, f2, f3, f4 : BFILE);
+BEGIN
+        IF IsOpen(o) THEN BEGIN
+                SetDeleteOnClose(o, TRUE);
+                Close(o);
+        END;
+        DropFile(f1);
+        DropFile(f2);
+        DropFile(f3);
+        DropFile(f4);
+END;
+
 FUNCTION LinkSmallModel(VAR build_plan : IMAGE_BUILD_PLAN) : BOOLEAN;
 VAR     err : BOOLEAN;
         i, new_headers, code, data : BFILE;
@@ -664,6 +936,9 @@ VAR     err : BOOLEAN;
         selfr     : BOOLEAN;
         exports   : PEXPORTS;
         p         : INTEGER;
+        lk        : INTEGER;
+        tk        : INTEGER;
+        grec      : REXP_REC;
 BEGIN
         code_segnum := 0;
         data_segnum := 1;
@@ -677,7 +952,7 @@ BEGIN
 
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Assign(i, r^.filename);
+                Assign(i, r^.filename^);
                 Reset(i);
                 err := NOT IsOpen(i);
                 IF err THEN BREAK;
@@ -721,7 +996,12 @@ BEGIN
                                         Inc(exports^.export[p].rec.offset, r^.linker.smz_bss_ofs);
                                         exports^.export[p].rec.seg := bss_segnum;
                                 END;
-                                SET_EXPORT_REC(exports^.export[p].rec, s);
+                                grec.flags := exports^.export[p].rec.flags;
+                                grec.seg := exports^.export[p].rec.seg;
+                                grec.offset := exports^.export[p].rec.offset;
+                                grec.name := SymName(exports^.export[p].rec.sym)^;
+                                grec.next := NIL;
+                                SET_EXPORT_REC(grec, s);
                                 RDF_WRITE_REC(new_headers, RREC_GLOBAL, s);
                                 Inc(p);
                         END;
@@ -739,6 +1019,10 @@ BEGIN
                         selfr := (rrec.seg AND $40) <> 0;
                         fix := 0;
                         rrec.seg := rrec.seg AND $3F;
+                        lk := 3;
+                        tk := 3;
+                        IF rrec.seg = r^.code_segnum THEN lk := 0
+                        ELSE IF rrec.seg = r^.data_segnum THEN lk := 1;
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 rrec.seg := code_segnum;
                                 Inc(rrec.offset, r^.linker.smz_code_ofs);
@@ -747,18 +1031,22 @@ BEGIN
                                 Inc(rrec.offset, r^.linker.smz_data_ofs);
                         END;
                         IF rrec.rseg = r^.code_segnum THEN BEGIN
+                                tk := 0;
                                 IF NOT selfr THEN Inc(fix, r^.linker.smz_code_ofs);
                         END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
+                                tk := 1;
                                 IF NOT selfr THEN Inc(fix, r^.linker.smz_data_ofs);
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
+                                tk := 2;
                                 IF NOT selfr THEN Inc(fix, r^.linker.smz_bss_ofs);
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
                                 IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
-                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        System.Writeln(r^.filename^, ': unresolved import.');
                                         err := TRUE;
                                         BREAK;
                                 END;
+                                IF import^.export^.rec.seg <= 2 THEN tk := import^.export^.rec.seg;
                                 IF import^.export^.rec.seg = code_segnum THEN BEGIN
                                         rrec.rseg := code_segnum;
                                         IF selfr THEN fix := -r^.linker.smz_code_ofs;
@@ -770,6 +1058,11 @@ BEGIN
                                         IF selfr THEN fix := -r^.linker.smz_bss_ofs;
                                 END;
                                 Inc(fix, import^.export^.rec.offset);
+                        END;
+                        IF selfr AND (lk <> tk) THEN BEGIN
+                                System.Writeln(r^.filename^, ': near relative reference to another segment.');
+                                err := TRUE;
+                                BREAK;
                         END;
                         IF rrec.seg = code_segnum THEN BEGIN
                                 IncMem(code, rrec.width
@@ -789,6 +1082,9 @@ BEGIN
         END;
 
         IF NOT err THEN BEGIN
+                LayCode := FileSize(code);
+                LayData := FileSize(data);
+                LayBss := bss_size;
                 SET_BSS(bss_size, s);
                 RDF_WRITE_REC(new_headers, RREC_BSS, s);
                 WRITE_RDF(new_headers, code_segnum, code, data_segnum, data, build_plan.linked_out);
@@ -799,58 +1095,64 @@ BEGIN
         LinkSmallModel := err;
 END;
 
+PROCEDURE FreeMeta(r : PRDFMETA);
+VAR     export   : PEXPORTS;
+        import   : PIMPORTS;
+BEGIN
+        WHILE r^.linker.export <> NIL DO BEGIN
+                export := r^.linker.export;
+                r^.linker.export := r^.linker.export^.next;
+                FreeMem(export, ExpChunkSize(export^.cap));
+        END;
+        WHILE r^.linker.import <> NIL DO BEGIN
+                import := r^.linker.import;
+                r^.linker.import := r^.linker.import^.next;
+                FreeMem(import, ImpChunkSize(import^.cap));
+        END;
+        IF r^.modname <> NIL THEN FreeMem(r^.modname, Length(r^.modname^) + 1);
+        FreeMem(r, SizeOf(TRDFMETA));
+END;
+
 PROCEDURE FreeOutOfPlan(VAR build_plan : IMAGE_BUILD_PLAN);
 VAR     r        : PRDFMETA;
         prev     : PRDFMETA;
         nxt      : PRDFMETA;
-        export   : PEXPORTS;
-        import   : PIMPORTS;
 BEGIN
         prev := NIL;
         r := build_plan.rdfs;
         WHILE r <> NIL DO BEGIN
                 nxt := r^.next;
                 IF NOT r^.linker.linked THEN BEGIN
-                        WHILE r^.linker.export <> NIL DO BEGIN
-                                export := r^.linker.export;
-                                r^.linker.export := r^.linker.export^.next;
-                                FreeMem(export, SizeOf(TEXPORTS));
-                        END;
-                        WHILE r^.linker.import <> NIL DO BEGIN
-                                import := r^.linker.import;
-                                r^.linker.import := r^.linker.import^.next;
-                                FreeMem(import, SizeOf(TIMPORTS));
-                        END;
                         IF prev = NIL THEN build_plan.rdfs := nxt ELSE prev^.next := nxt;
-                        FreeMem(r, SizeOf(TRDFMETA));
+                        FreeMeta(r);
                 END ELSE prev := r;
                 r := nxt;
         END;
+        HashRebuild(build_plan);
 END;
 
 PROCEDURE DestroyPlan(VAR build_plan : IMAGE_BUILD_PLAN);
 VAR     r        : PRDFMETA;
-        export   : PEXPORTS;
-        import   : PIMPORTS;
 BEGIN
         WHILE build_plan.rdfs <> NIL DO BEGIN
                 r := build_plan.rdfs;
                 build_plan.rdfs := build_plan.rdfs^.next;
-                WHILE r^.linker.export <> NIL DO BEGIN
-                        export := r^.linker.export;
-                        r^.linker.export := r^.linker.export^.next;
-                        FreeMem(export, SizeOf(TEXPORTS));
-                END;
-                WHILE r^.linker.import <> NIL DO BEGIN
-                        import := r^.linker.import;
-                        r^.linker.import := r^.linker.import^.next;
-                        FreeMem(import, SizeOf(TIMPORTS));
-                END;
-                FreeMem(r, SizeOf(TRDFMETA));
+                FreeMeta(r);
         END;
+        SymFree;
         Close(build_plan.hdr);
 END;
 
 BEGIN
         ExtImportOn := FALSE;
+        LayCode := 0;
+        LayData := 0;
+        LayBss := 0;
+        MapKind := MAP_FLAT;
+        FillChar(MapBase, SizeOf(MapBase), #0);
+        MapImage := 0;
+        MapSegNo[0] := -1;
+        MapSegNo[1] := -1;
+        MapSegNo[2] := -1;
+        MapDigits := 8;
 END.

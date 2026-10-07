@@ -1,0 +1,36 @@
+all : MCOM.MAP MS.MAP MZ.MAP MNE.MAP MPE.MAP
+
+MCOM.MAP: C1.RDF C2.RDF ..\..\BIN\RLINK.EXE
+	..\..\BIN\RLINK com /map /o=MCOM.COM C1.RDF C2.RDF
+MS.MAP: M1.RDF M2.RDF ..\..\BIN\RLINK.EXE
+	..\..\BIN\RLINK mzs /map /o=MS.EXE M1.RDF M2.RDF
+MZ.MAP: M1.RDF M2.RDF ..\..\BIN\RLINK.EXE
+	..\..\BIN\RLINK mzl /map /o=MZ.EXE M1.RDF M2.RDF
+MNE.MAP: N1.RDF N2.RDF ..\..\BIN\RLINK.EXE
+	..\..\BIN\RLINK ne /map /o=MNE.EXE N1.RDF N2.RDF
+MPE.MAP: P1.RDF P2.RDF ..\..\BIN\RLINK.EXE
+	..\..\BIN\RLINK dospe /map /o=MPE.EXE P1.RDF P2.RDF
+C1.RDF: C1.ASM
+	nasm -f rdf C1.ASM
+C2.RDF: C2.ASM
+	nasm -f rdf C2.ASM
+M1.RDF: M1.ASM
+	nasm -f rdf M1.ASM
+M2.RDF: M2.ASM
+	nasm -f rdf M2.ASM
+N1.RDF: N1.ASM
+	nasm -f rdf N1.ASM
+N2.RDF: N2.ASM
+	nasm -f rdf N2.ASM
+P1.RDF: P1.ASM
+	nasm -f rdf P1.ASM
+P2.RDF: P2.ASM
+	nasm -f rdf P2.ASM
+clean:
+	DEL *.RDF
+	DEL MCOM.COM
+	DEL MS.EXE
+	DEL MZ.EXE
+	DEL MNE.EXE
+	DEL MPE.EXE
+	DEL *.MAP

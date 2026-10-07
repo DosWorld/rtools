@@ -1,0 +1,14 @@
+Output : MZ.EXE
+Format : mzl
+Entry  : start = 0002:0001
+
+M2.RDF
+  CODE  0000:0000  size 00000009
+  DATA  0001:0000  size 0000000E
+    0000:0001  CODE _main
+    0001:000E  DATA _mdata
+
+M1.RDF
+  CODE  0002:0000  size 00000011
+  DATA  0004:0000  size 00000002
+    0002:0001  CODE start

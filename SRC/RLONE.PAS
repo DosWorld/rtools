@@ -214,11 +214,11 @@ BEGIN
         END ELSE BEGIN
                 imp := LookupImportByRSeg(r, rseg);
                 IF imp = NIL THEN BEGIN
-                        System.Writeln(r^.filename, ': relocation to unknown import.');
+                        System.Writeln(r^.filename^, ': relocation to unknown import.');
                         EXIT;
                 END;
                 IF imp^.ext THEN BEGIN
-                        IF NOT ParseExt(imp^.rec.name, mn, eord, pn) THEN EXIT;
+                        IF NOT ParseExt(SymName(imp^.rec.sym)^, mn, eord, pn) THEN EXIT;
                         k := ModIndex(mn);
                         IF k = 0 THEN BEGIN
                                 System.Writeln('Too many imported modules.');
@@ -250,7 +250,7 @@ BEGIN
                 END;
         END;
         IF tidx = 0 THEN BEGIN
-                System.Writeln(r^.filename, ': relocation to empty segment.');
+                System.Writeln(r^.filename^, ': relocation to empty segment.');
                 EXIT;
         END;
         ResolveRef := TRUE;
@@ -319,12 +319,12 @@ BEGIN
                         rrec.seg := rrec.seg AND $3F;
                         IF rrec.seg <> psn THEN CONTINUE;
                         IF rrec.width <> RWIDTH16 THEN BEGIN
-                                System.Writeln(r^.filename, ': only 16-bit relocations are supported in NE.');
+                                System.Writeln(r^.filename^, ': only 16-bit relocations are supported in NE.');
                                 err := TRUE;
                                 BREAK;
                         END;
                         IF rrec.offset + 2 > segs^[si].len THEN BEGIN
-                                System.Writeln(r^.filename, ': relocation is outside of segment.');
+                                System.Writeln(r^.filename^, ': relocation is outside of segment.');
                                 err := TRUE;
                                 BREAK;
                         END;
@@ -336,7 +336,7 @@ BEGIN
                         IF pass = 0 THEN BEGIN
                                 IF rel THEN BEGIN
                                         IF ext OR (tidx <> si) THEN BEGIN
-                                                System.Writeln(r^.filename
+                                                System.Writeln(r^.filename^
                                                         , ': near relative reference to another segment.');
                                                 err := TRUE;
                                         END ELSE IF rrec.rseg <> psn THEN BEGIN
@@ -353,7 +353,7 @@ BEGIN
                                 END;
                         END ELSE BEGIN
                                 IF rel THEN BEGIN
-                                        System.Writeln(r^.filename, ': relative segment reference.');
+                                        System.Writeln(r^.filename^, ': relative segment reference.');
                                         err := TRUE;
                                         BREAK;
                                 END;
@@ -362,7 +362,7 @@ BEGIN
                                 IF ext THEN BEGIN
                                         IF (k < 0) OR (rl^[k].flags <> eflag)
                                                 OR (rl^[k].tseg <> emod) OR (rl^[k].tofs <> eord) THEN BEGIN
-                                                System.Writeln(r^.filename
+                                                System.Writeln(r^.filename^
                                                         , ': segment of imported symbol is not supported.');
                                                 err := TRUE;
                                                 BREAK;
@@ -777,7 +777,7 @@ BEGIN
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
                 IF (r^.code_size > $FFFF) OR (r^.data_size > $FFFF) THEN BEGIN
-                        System.Writeln(r^.filename, ': code or data segment is larger than 64K.');
+                        System.Writeln(r^.filename^, ': code or data segment is larger than 64K.');
                         err := TRUE;
                         BREAK;
                 END;
@@ -836,6 +836,17 @@ BEGIN
                 END;
         END;
         dgroup := nseg + 1;
+        MapKind := MAP_SEG;
+        MapDigits := 4;
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                FillChar(r^.linker.map_ofs, SizeOf(r^.linker.map_ofs), #0);
+                r^.linker.map_seg[0] := r^.linker.hmz_code_seg;
+                r^.linker.map_seg[1] := r^.linker.hmz_data_seg;
+                r^.linker.map_seg[2] := dgroup;
+                r^.linker.map_ofs[2] := r^.linker.hmz_bss_seg;
+                r := r^.next;
+        END;
         IF NOT err THEN BEGIN
                 segs^[dgroup].r := NIL;
                 segs^[dgroup].kind := KIND_BSS;
@@ -843,7 +854,7 @@ BEGIN
                 segs^[dgroup].alloc := bss_total + stack_size + def_heap;
                 IF segs^[dgroup].alloc = 0 THEN segs^[dgroup].alloc := 2;
                 FOR n := 1 TO nseg DO FOR m := 1 TO segdef_count DO BEGIN
-                        IF (segdefs[m].stem = StemOf(segs^[n].r^.filename))
+                        IF (segdefs[m].stem = StemOf(segs^[n].r^.filename^))
                                 AND (segdefs[m].isdata = (segs^[n].kind = KIND_DATA)) THEN BEGIN
                                 segs^[n].has_ovr := TRUE;
                                 segs^[n].attr_ovr := segdefs[m].attr;
@@ -854,7 +865,7 @@ BEGIN
         n := 1;
         WHILE (n <= nseg) AND (NOT err) DO BEGIN
                 r := segs^[n].r;
-                Assign(i, r^.filename);
+                Assign(i, r^.filename^);
                 Reset(i);
                 IF NOT IsOpen(i) THEN BEGIN
                         err := TRUE;

@@ -50,6 +50,20 @@ fc /b D2.EXE E2.EXE
 if errorlevel 1 goto fail
 fc /b E1.EXE E2.EXE > NUL
 if not errorlevel 1 goto fail
+nasm -f rdf DE.ASM
+..\..\BIN\RLINK mzs /o=S0.EXE DE.RDF
+if not errorlevel 1 goto fail
+..\..\BIN\RLINK mzs /s=0 /o=S1.EXE U0.RDF
+if not errorlevel 1 goto fail
+..\..\BIN\RLINK com /org=70000 /o=S2.COM U0.RDF
+if not errorlevel 1 goto fail
+..\..\BIN\RLINK rdf /map /o=S3.MAP U0.RDF
+if not errorlevel 1 goto fail
+if exist BIG.RDL del BIG.RDL
+..\..\BIN\RLIB c BIG.RDL
+for %%a in (0 1 2 3 4 5 6 7 8 9) do call BIGA.BAT %%a
+..\..\BIN\RLINK mzs /o=BIG.EXE L1.RDF BIG.RDL
+if errorlevel 1 goto fail
 echo OK
 echo OK > CHECK.OK
 goto end

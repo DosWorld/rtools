@@ -1,0 +1,13 @@
+Output : MCOM.COM
+Format : com
+Entry  : start = 0115
+
+C2.RDF
+  CODE  0104  size 00000009
+  DATA  0124  size 0000000E
+    0105  CODE _main
+    0132  DATA _mdata
+
+C1.RDF
+  CODE  0114  size 0000000E
+    0115  CODE start

@@ -69,12 +69,7 @@ VAR     err           : BOOLEAN;
 
         le_start      : DWORD;
         ip            : DWORD;
-        imageSize     : DWORD;
         i             : DWORD;
-        relocs_ofs    : DWORD;
-        cr_pos        : DWORD;
-        crb_pos       : DWORD;
-        cr_page       : DWORD;
         s             : STRING;
         rrec          : RRELOC_REC;
         selfr         : BOOLEAN;
@@ -134,6 +129,12 @@ BEGIN
 
         code_ofs := 0;
         bss_ofs := code_ofs + code_size;
+        MapKind := MAP_FLAT;
+        MapImage := 0;
+        MapDigits := 8;
+        MapBase[0] := code_ofs;
+        MapBase[1] := code_ofs + LayCode;
+        MapBase[2] := bss_ofs;
 
         IF NOT err THEN BEGIN
                 Seek(hdr, 0);
@@ -142,15 +143,8 @@ BEGIN
 
         Inc(ip, code_ofs);
         IF err THEN BEGIN
-                IF IsOpen(o) THEN BEGIN
-                        SetDeleteOnClose(o, TRUE);
-                        Close(o);
-                END;
-                IF IsOpen(hdr) THEN Close(hdr);
-                IF IsOpen(code) THEN Close(code);
-                IF IsOpen(data) THEN Close(data);
-                IF IsOpen(inp) THEN Close(inp);
-                IF IsOpen(relocs) THEN Close(relocs);
+                AbortGen(o, hdr, code, data, inp);
+                DropFile(relocs);
                 LinkAndGenLE := TRUE;
                 EXIT;
         END;
@@ -180,12 +174,13 @@ BEGIN
         hdr_le.osType := LE_OS2;
         hdr_le.moduleFlags := $200;
         hdr_le.pageSize := $1000;
-        hdr_le.moduleNumPages := (FileSize(code) div hdr_le.pageSize) + 1;
+        hdr_le.moduleNumPages := (FileSize(code) + hdr_le.pageSize - 1) div hdr_le.pageSize;
         hdr_le.eipObject := 1;
         hdr_le.eip := ip;
         hdr_le.espObject := 2;
         hdr_le.esp := stack_size;
         hdr_le.lPageSize := FileSize(code) mod hdr_le.pageSize;
+        IF hdr_le.lPageSize = 0 THEN hdr_le.lPageSize := hdr_le.pageSize;
         hdr_le.objectTblOfs := SizeOf(LE_HEADER);
         hdr_le.moduleNumObjects := 2;
         hdr_le.autoDsObjectNum := 2;

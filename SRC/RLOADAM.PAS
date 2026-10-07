@@ -88,28 +88,14 @@ BEGIN
 
         IF NOT err THEN err := err OR MergeCodeDataBss(input, i, FALSE);
         IF err THEN BEGIN
-                IF IsOpen(o) THEN BEGIN
-                        SetDeleteOnClose(o, TRUE);
-                        Close(o);
-                END;
-                IF IsOpen(hdr) THEN Close(hdr);
-                IF IsOpen(code) THEN Close(code);
-                IF IsOpen(data) THEN Close(data);
-                IF IsOpen(i) THEN Close(i);
+                AbortGen(o, hdr, code, data, i);
                 LinkAndGenAdam := TRUE;
                 EXIT;
         END;
         Seek(i, 0);
         err := err OR (NOT ReadRDF(i, hdr, code, data, code_segnum, data_segnum, bss_segnum));
         IF err THEN BEGIN
-                IF IsOpen(o) THEN BEGIN
-                        SetDeleteOnClose(o, TRUE);
-                        Close(o);
-                END;
-                IF IsOpen(hdr) THEN Close(hdr);
-                IF IsOpen(code) THEN Close(code);
-                IF IsOpen(data) THEN Close(data);
-                IF IsOpen(i) THEN Close(i);
+                AbortGen(o, hdr, code, data, i);
                 LinkAndGenAdam := TRUE;
                 EXIT;
         END;
@@ -118,6 +104,13 @@ BEGIN
         FilePosAlign(data, 2);
         Seek(hdr, 0);
         err := err OR DisableRecs(hdr, RREC_SEGRELO);
+
+        MapKind := MAP_FLAT;
+        MapImage := 0;
+        MapDigits := 8;
+        MapBase[0] := 0;
+        MapBase[1] := LayCode;
+        MapBase[2] := FileSize(code);
 
         bss_size := 0;
         IF NOT err THEN BEGIN

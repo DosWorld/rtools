@@ -36,6 +36,20 @@ FUNCTION LinkAndGenRDF(VAR input : BFILE; outfname : STRING; reserv_bss : BOOLEA
 VAR     o           : BFILE;
         err         : BOOLEAN;
 BEGIN
+        MapKind := MAP_FLAT;
+        MapImage := 0;
+        MapDigits := 8;
+        MapBase[0] := 0;
+        MapBase[1] := LayCode;
+        MapSegNo[0] := 0;
+        MapSegNo[1] := 0;
+        IF reserv_bss THEN BEGIN
+                MapBase[2] := LayCode + LayData;
+                MapSegNo[2] := 0;
+        END ELSE BEGIN
+                MapBase[2] := 0;
+                MapSegNo[2] := 2;
+        END;
         Assign(o, outfname);
         ReWrite(o);
         err := NOT IsOpen(o);

@@ -39,6 +39,13 @@ So, don't be confused with dos 16-bit application - RLINK known how to handle mo
 ## Supported output formats
 
 * COM - simple MS-DOS .com file
+* MZT - MS-DOS exe, tiny memory model: the same image as COM
+  (code offset 0x0100, CS = DS = SS = PSP, entry `start`) in an
+  MZ file, so the file can be extended after the image. The
+  bss is not stored in the file (`/bss` reserves it). DOS gives
+  the program only image + bss + stack (`/s`, KB, default 8):
+  SS = PSP, SP is the end of that area (MIN/MAX alloc in the
+  header), not a whole 64 KB segment.
 * MZS - MS-DOS exe, small memory model. CS = code, one data
   segment for data and bss (the program must load DS itself).
   The stack is a separate segment: SS is the data segment plus
@@ -68,9 +75,10 @@ If you load code segment at ????:0000 - you don't need process relocations. And,
 * Only the modules that can be reached from the entry-point
   (`/entry`, default `start`) are linked, so a module or a
   library member that nobody uses does not enlarge the file,
-  and its unresolved imports are not an error. All modules are
-  linked for a QLB, for a DLL (`winpe`, `dospe`, `ne` with
-  `LIBRARY`) and for NE with exports.
+  and its unresolved imports are not an error. For `winpe` and
+  `ne` with exports, the roots are the entry-point and the modules
+  that define the exported symbols. All modules are linked for a
+  QLB and for a DLL without exports.
 * A whole `.RDL` library is read, but only the members that
   are used get into the output.
 * If a symbol is defined by several modules, the module that
@@ -78,7 +86,30 @@ If you load code segment at ????:0000 - you don't need process relocations. And,
   so your own modules always win against a library.
 * `RLIB` (environment variable) is the list of directories
   where the rdf and rdl files are searched; `@file` is a
-  response file with a list of names.
+  response file with a list of names. A name with a path is used
+  as it is, only a name without a path is searched in the current
+  directory and in `RLIB`.
+* The entry-point must be in the code segment of its module.
+
+## Map file
+
+`/map` (all formats) writes a map file next to the output file, with
+the extension `.MAP` (`rlink com /map /o=A.COM X.RDF` writes `A.MAP`).
+It has the output name, the format, the entry-point, and then, for each
+linked module in the order of the image: the CODE, DATA and BSS areas
+(address and size) and the global symbols sorted by address. A module
+from a library is shown as `LIB.RDL(name)`.
+
+* `com`, `mzt`: the offset in the segment (the code starts at `/org`).
+* `mzs`, `mzl`, `ne`, `qlb`: `SEG:OFFSET`; `mzs`, `mzl`, `qlb` - the
+  segment value relative to the start of the program, `ne` - the segment
+  number (the bss of all modules is in the last segment).
+* `adam`, `le`: the offset in the image (the first object for `le`).
+* `winpe`, `dospe`: the virtual address (image base + RVA).
+* `rdf`: `SEGMENT:OFFSET`, as in the output file.
+
+Modules that RLINK generates (the import thunks) are shown as
+`(generated imports)`. TEST\MAP has reference maps.
 
 ## rlib
 
@@ -171,8 +202,9 @@ default). The other statements are accepted and ignored.
   may be in the code or in the data section. Names are sorted
   in the export table as the loader needs it.
 * DLL: `LIBRARY name`; the entry-point (`start`) is DllMain.
-  All modules from the command line are linked into a DLL
-  (not only the modules reachable from the entry-point).
+  The modules that define the exported symbols and the modules
+  reachable from them and from the entry-point are linked (all
+  modules, if there are no exports).
   The base is 10000000h, the base relocation table is always
   written.
 * Resources: `/res=FILE.RES` takes a 32-bit `.RES` file
@@ -319,6 +351,16 @@ Just type:
 
         cd src
         make
+
+# Tests
+
+Every TEST\* directory has a CHECK.BAT: it builds the test and compares
+the result with the reference file (`fc /b`). `TEST\CHECKALL.BAT` runs
+all of them and prints OK or FAILED for each directory (NASM 0.98.39 must
+be in PATH, RLINK is taken from BIN):
+
+        cd test
+        checkall
 
 # License
 

@@ -26,13 +26,15 @@ UNIT rlocom;
 
 INTERFACE
 
-USES system2, rdffmt, rlo;
+USES system2, rdffmt, rlo, exe;
 
 FUNCTION LinkAndGenCOM(VAR input : BFILE;
         code_ofs : DWORD;
         entry_name : RDFNAME;
         outfname : STRING;
-        reserv_bss : BOOLEAN) : BOOLEAN;
+        reserv_bss : BOOLEAN;
+        tiny_mz : BOOLEAN;
+        stack_size : DWORD) : BOOLEAN;
 
 IMPLEMENTATION
 
@@ -40,7 +42,9 @@ FUNCTION LinkAndGenCOM(VAR input : BFILE;
         code_ofs    : DWORD;
         entry_name  : RDFNAME;
         outfname    : STRING;
-        reserv_bss  : BOOLEAN) : BOOLEAN;
+        reserv_bss  : BOOLEAN;
+        tiny_mz     : BOOLEAN;
+        stack_size  : DWORD) : BOOLEAN;
 VAR     dst_ofs     : DWORD;
         c           : STRING;
         rec         : RRELOC_REC;
@@ -66,6 +70,10 @@ VAR     dst_ofs     : DWORD;
         data_segnum : WORD;
         bss_segnum  : WORD;
         self        : BOOLEAN;
+        mzh         : MZ_HEADER;
+        mzpad       : ARRAY[0..3] OF BYTE;
+        mzsize      : DWORD;
+        mztop       : DWORD;
 BEGIN
         FillChar(i, SizeOf(BFile), #0);
         FillChar(hdr, SizeOf(BFile), #0);
@@ -87,14 +95,7 @@ BEGIN
 
         IF NOT err THEN err := err OR MergeCodeDataBss(input, i, reserv_bss);
         IF err THEN BEGIN
-                IF IsOpen(o) THEN BEGIN
-                        SetDeleteOnClose(o, TRUE);
-                        Close(o);
-                END;
-                IF IsOpen(hdr) THEN Close(hdr);
-                IF IsOpen(code) THEN Close(code);
-                IF IsOpen(data) THEN Close(data);
-                IF IsOpen(i) THEN Close(i);
+                AbortGen(o, hdr, code, data, i);
                 LinkAndGenCOM := TRUE;
                 EXIT;
         END;
@@ -102,14 +103,7 @@ BEGIN
         Seek(i, 0);
         err := err OR (NOT ReadRDF(i, hdr, code, data, code_segnum, data_segnum, bss_segnum));
         IF err THEN BEGIN
-                IF IsOpen(o) THEN BEGIN
-                        SetDeleteOnClose(o, TRUE);
-                        Close(o);
-                END;
-                IF IsOpen(hdr) THEN Close(hdr);
-                IF IsOpen(code) THEN Close(code);
-                IF IsOpen(data) THEN Close(data);
-                IF IsOpen(i) THEN Close(i);
+                AbortGen(o, hdr, code, data, i);
                 LinkAndGenCOM := TRUE;
                 EXIT;
         END;
@@ -120,7 +114,12 @@ BEGIN
         err := err OR DisableRecs(hdr, RREC_SEGRELO);
         err := err OR DisableRecs(hdr, RREC_IMPORT);
         err := err OR DisableRecs(hdr, RREC_FARIMPORT);
-        err := err OR DisableRelocsWidth(hdr, RWIDTH16);
+        IF tiny_mz THEN err := err OR DisableRelocsWidth(hdr, RWIDTH32)
+        ELSE err := err OR DisableRelocsWidth(hdr, RWIDTH16);
+        IF tiny_mz AND (code_ofs <> $100) THEN BEGIN
+                System.Writeln('MZT needs code offset 0x0100.');
+                err := TRUE;
+        END;
         code_size := FileSize(code);
         bss_ofs := code_ofs + code_size;
 
@@ -135,10 +134,20 @@ BEGIN
                 Inc(bss_ofs, SizeOf(jmp_instr));
         END;
 
+        MapKind := MAP_FLAT;
+        MapImage := 0;
+        MapDigits := 4;
+        MapBase[0] := code_ofs;
+        MapBase[1] := code_ofs + LayCode;
+        IF reserv_bss THEN MapBase[2] := MapBase[1] + LayData
+        ELSE MapBase[2] := bss_ofs;
+
         bss_total := 0;
         Seek(hdr, 0);
         WHILE RDF_LOOKUPREC(hdr, RREC_BSS, c) DO GET_BSS(c, bss_total);
-        IF (NOT err) AND (code_ofs + code_size + bss_total > $10000) THEN BEGIN
+        IF NOT tiny_mz THEN stack_size := 0;
+        mztop := (code_ofs + code_size + bss_total + stack_size + 1) AND $1FFFE;
+        IF (NOT err) AND (mztop > $10000) THEN BEGIN
                 System.Writeln('Program is larger than 64K (COM).');
                 err := TRUE;
         END;
@@ -159,6 +168,25 @@ BEGIN
         END;
 
         IF NOT err THEN BEGIN
+                IF tiny_mz THEN BEGIN
+                        mzsize := 32 + code_size;
+                        IF need_jmp THEN Inc(mzsize, SizeOf(jmp_instr));
+                        FillChar(mzh, SizeOf(MZ_HEADER), #0);
+                        FillChar(mzpad, SizeOf(mzpad), #0);
+                        mzh.sign := MZ_SIGN;
+                        mzh.lblk_size := mzsize AND $1FF;
+                        mzh.blk_count := (mzsize + $1FF) SHR 9;
+                        mzh.header_par := 2;
+                        mzh.min_ext_par := ((mztop + 15) SHR 4) - $10 - ((mzsize - 32 + 15) SHR 4);
+                        mzh.max_ext_par := mzh.min_ext_par;
+                        mzh.ss := $FFF0;
+                        mzh.sp := mztop AND $FFFF;
+                        mzh.ip := $100;
+                        mzh.cs := $FFF0;
+                        mzh.relocs_ofs := SizeOf(MZ_HEADER);
+                        BlockWrite(o, mzh, SizeOf(MZ_HEADER));
+                        BlockWrite(o, mzpad, SizeOf(mzpad));
+                END;
                 IF need_jmp THEN BEGIN
                         jmp_addr := ip;
                         jmp_addr := jmp_addr - (code_ofs - SizeOf(jmp_instr) + 3);

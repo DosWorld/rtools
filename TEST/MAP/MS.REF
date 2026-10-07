@@ -1,0 +1,14 @@
+Output : MS.EXE
+Format : mzs
+Entry  : start = 0000:000D
+
+M2.RDF
+  CODE  0000:0000  size 00000009
+  DATA  0002:0000  size 0000000E
+    0000:0001  CODE _main
+    0002:000E  DATA _mdata
+
+M1.RDF
+  CODE  0000:000C  size 00000011
+  DATA  0002:0010  size 00000002
+    0000:000D  CODE start

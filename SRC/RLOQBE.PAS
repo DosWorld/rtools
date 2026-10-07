@@ -717,6 +717,8 @@ VAR     err        : BOOLEAN;
         names_real : DWORD;
         fix        : WORD;
         p          : INTEGER;
+        er         : PRDFMETA;
+        k          : INTEGER;
 
 BEGIN
         err := FALSE;
@@ -740,11 +742,11 @@ BEGIN
 
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Assign(i, r^.filename);
+                Assign(i, r^.filename^);
                 Reset(i);
                 err := NOT IsOpen(i);
                 IF (NOT err) AND (r^.code_size > $10000) THEN BEGIN
-                        System.Writeln(r^.filename, ': code segment is larger than 64K.');
+                        System.Writeln(r^.filename^, ': code segment is larger than 64K.');
                         Close(i);
                         err := TRUE;
                 END;
@@ -775,7 +777,7 @@ BEGIN
                                 WHILE expl <> NIL DO BEGIN
                                         FOR p := 1 TO expl^.export_count DO
                                                 IF expl^.export[p].rec.seg = r^.code_segnum THEN BEGIN
-                                                        ex.name := expl^.export[p].rec.name;
+                                                        ex.name := SymName(expl^.export[p].rec.sym)^;
                                                         ex.ofs := expl^.export[p].rec.offset;
                                                         ex.seg := r^.linker.hmz_code_seg;
                                                         BlockWrite(exports, ex, SizeOf(TQBEEXP));
@@ -804,11 +806,11 @@ BEGIN
                         r := r^.next;
                         CONTINUE;
                 END;
-                Assign(i, r^.filename);
+                Assign(i, r^.filename^);
                 Reset(i);
                 err := NOT IsOpen(i);
                 IF (NOT err) AND (r^.data_size > $10000) THEN BEGIN
-                        System.Writeln(r^.filename, ': data segment is larger than 64K.');
+                        System.Writeln(r^.filename^, ': data segment is larger than 64K.');
                         Close(i);
                         err := TRUE;
                 END;
@@ -827,7 +829,7 @@ BEGIN
                                 GET_BSS(s, bss_size);
                         END;
                         IF bss_size > $10000 THEN BEGIN
-                                System.Writeln(r^.filename, ': bss segment is larger than 64K.');
+                                System.Writeln(r^.filename^, ': bss segment is larger than 64K.');
                                 err := TRUE;
                         END;
                         bss_size := AlignValue(bss_size, $10);
@@ -838,39 +840,32 @@ BEGIN
                 r := r^.next;
         END;
 
+        MapKind := MAP_SEG;
+        MapDigits := 4;
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                FillChar(r^.linker.map_ofs, SizeOf(r^.linker.map_ofs), #0);
+                r^.linker.map_seg[0] := r^.linker.hmz_code_seg;
+                r^.linker.map_seg[1] := r^.linker.hmz_data_seg;
+                r^.linker.map_seg[2] := r^.linker.hmz_bss_seg;
+                r := r^.next;
+        END;
+
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
                 Seek(build_plan.hdr, r^.hdr_ofs);
                 WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
                         IF rrec.width <> RWIDTH16 THEN BEGIN
-                                System.Writeln(r^.filename, ': only 16-bit segment relocations are supported.');
+                                System.Writeln(r^.filename^, ': only 16-bit segment relocations are supported.');
                                 err := TRUE;
                                 BREAK;
                         END;
-                        fix := 0;
-                        IF rrec.rseg = r^.code_segnum THEN BEGIN
-                                fix := r^.linker.hmz_code_seg;
-                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
-                                fix := r^.linker.hmz_data_seg;
-                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
-                                fix := r^.linker.hmz_bss_seg;
-                        END ELSE BEGIN
-                                import := LookupImportByRSeg(r, rrec.rseg);
-                                IF import = NIL THEN BEGIN
-                                        System.Writeln(r^.filename, ': unresolved import ', rrec.rseg, '.');
-                                        err := TRUE;
-                                END ELSE IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.code_segnum THEN
-                                        fix := import^.export^.rdf^.linker.hmz_code_seg
-                                ELSE IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.data_segnum THEN
-                                        fix := import^.export^.rdf^.linker.hmz_data_seg
-                                ELSE IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.bss_segnum THEN
-                                        fix := import^.export^.rdf^.linker.hmz_bss_seg;
+                        IF NOT ResolveKind(r, rrec.rseg, er, k) THEN BEGIN
+                                err := TRUE;
+                                BREAK;
                         END;
-                        IF err THEN BREAK;
+                        fix := HmzSegOf(er, k);
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 SetMem(code, RWIDTH16
                                         , (r^.linker.hmz_code_seg SHL 4) + rrec.offset
@@ -895,12 +890,12 @@ BEGIN
                         selfr := (rrec.seg AND $40) <> 0;
                         rrec.seg := rrec.seg AND $3F;
                         IF rrec.width <> RWIDTH16 THEN BEGIN
-                                System.Writeln(r^.filename, ': only 16-bit relocations are supported.');
+                                System.Writeln(r^.filename^, ': only 16-bit relocations are supported.');
                                 err := TRUE;
                                 BREAK;
                         END;
                         IF selfr AND (rrec.rseg <> rrec.seg) THEN BEGIN
-                                System.Writeln(r^.filename, ': self-relative relocation to another segment or import.');
+                                System.Writeln(r^.filename^, ': self-relative relocation to another segment or import.');
                                 err := TRUE;
                                 BREAK;
                         END;
@@ -910,7 +905,7 @@ BEGIN
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
                                 IF import = NIL THEN BEGIN
-                                        System.Writeln(r^.filename, ': unresolved import ', rrec.rseg, '.');
+                                        System.Writeln(r^.filename^, ': unresolved import ', rrec.rseg, '.');
                                         err := TRUE;
                                 END ELSE Inc(fix, import^.export^.rec.offset);
                         END;

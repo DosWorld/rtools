@@ -1,0 +1,14 @@
+Output : MPE.EXE
+Format : dospe
+Entry  : start = 00401010
+
+P2.RDF
+  CODE  00401000  size 0000000B
+  DATA  00402000  size 0000000F
+    00401001  CODE _main
+    00402000  DATA _mdata
+
+P1.RDF
+  CODE  00401010  size 00000015
+  BSS   00403000  size 00000080
+    00401010  CODE start

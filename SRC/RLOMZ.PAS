@@ -49,21 +49,18 @@ FUNCTION LinkAndGenMZL(VAR build_plan : IMAGE_BUILD_PLAN;
 VAR     err      : BOOLEAN;
         i, o     : BFIle;
         hdr      : MZ_HEADER;
-        header_par : WORD;
         code     : BFile;
-        stack_ss : WORD;
         r        : PRDFMETA;
         start    : PLINK_EXPORT;
-        export   : PLINK_EXPORT;
         import   : PLINK_IMPORT;
         bss_size : DWORD;
         s        : STRING;
         rrec     : RRELOC_REC;
         mzr      : MZ_RELOC;
         fix      : DWORD;
-        p        : INTEGER;
-        find     : BOOLEAN;
         selfr    : BOOLEAN;
+        er       : PRDFMETA;
+        k        : INTEGER;
 BEGIN
         err := FALSE;
         Assign(o, outfname);
@@ -71,18 +68,18 @@ BEGIN
         err := NOT IsOpen(o);
         start := NIL;
         FillChar(hdr, SizeOf(MZ_HEADER), #0);
-        BlockWrite(o, hdr, SizeOf(MZ_HEADER));
+        IF NOT err THEN BlockWrite(o, hdr, SizeOf(MZ_HEADER));
 
         ReWriteTemp(code);
         err := err OR (NOT IsOpen(code));
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Assign(i, r^.filename);
+                Assign(i, r^.filename^);
                 Reset(i);
 
                 err := NOT IsOpen(i) ;
                 IF (NOT err) AND ((r^.code_size > $10000) OR (r^.data_size > $10000)) THEN BEGIN
-                        System.Writeln(r^.filename, ': code or data segment is larger than 64K.');
+                        System.Writeln(r^.filename^, ': code or data segment is larger than 64K.');
                         Close(i);
                         err := TRUE;
                 END;
@@ -124,12 +121,23 @@ BEGIN
                 END;
                 bss_size := AlignValue(bss_size, $10);
                 IF (bss_size > $10000) OR ((hdr.ss + (bss_size SHR 4)) > $FFF0) THEN BEGIN
-                        System.Writeln(r^.filename, ': bss is too large for MZ format.');
+                        System.Writeln(r^.filename^, ': bss is too large for MZ format.');
                         err := TRUE;
                         BREAK;
                 END;
                 r^.linker.hmz_bss_seg := hdr.ss;
                 Inc(hdr.ss, bss_size SHR 4);
+                r := r^.next;
+        END;
+
+        MapKind := MAP_SEG;
+        MapDigits := 4;
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                FillChar(r^.linker.map_ofs, SizeOf(r^.linker.map_ofs), #0);
+                r^.linker.map_seg[0] := r^.linker.hmz_code_seg;
+                r^.linker.map_seg[1] := r^.linker.hmz_data_seg;
+                r^.linker.map_seg[2] := r^.linker.hmz_bss_seg;
                 r := r^.next;
         END;
 
@@ -139,29 +147,11 @@ BEGIN
                 Seek(build_plan.hdr, r^.hdr_ofs);
                 WHILE (NOT err) AND RDF_NLOOKUPREC(build_plan.hdr, r^.hdr_ofs + r^.hdr_size, RREC_SEGRELO, s) DO BEGIN
                         GET_RELOC_REC(s, rrec);
-                        IF rrec.rseg = r^.code_segnum THEN BEGIN
-                                fix := r^.linker.hmz_code_seg;
-                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
-                                fix := r^.linker.hmz_data_seg;
-                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
-                                fix := r^.linker.hmz_bss_seg;
-                        END ELSE BEGIN
-                                import := LookupImportByRSeg(r, rrec.rseg);
-                                IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
-                                        System.Writeln(r^.filename, ': unresolved import.');
-                                        err := TRUE;
-                                        BREAK;
-                                END;
-                                IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.code_segnum THEN
-                                        fix := import^.export^.rdf^.linker.hmz_code_seg
-                                ELSE IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.data_segnum THEN
-                                        fix := import^.export^.rdf^.linker.hmz_data_seg
-                                ELSE IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.bss_segnum THEN
-                                        fix := import^.export^.rdf^.linker.hmz_bss_seg;
+                        IF NOT ResolveKind(r, rrec.rseg, er, k) THEN BEGIN
+                                err := TRUE;
+                                BREAK;
                         END;
+                        fix := HmzSegOf(er, k);
 
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 SetMem(code, RWIDTH16
@@ -203,7 +193,7 @@ BEGIN
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
                                 IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
-                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        System.Writeln(r^.filename^, ': unresolved import.');
                                         err := TRUE;
                                         BREAK;
                                 END;
@@ -253,25 +243,22 @@ FUNCTION LinkAndGenMZS(VAR build_plan : IMAGE_BUILD_PLAN;
 VAR     err      : BOOLEAN;
         i, o     : BFIle;
         hdr      : MZ_HEADER;
-        header_par : WORD;
         code     : BFile;
         data     : BFile;
-        stack_ss : WORD;
         r        : PRDFMETA;
         start    : PLINK_EXPORT;
-        export   : PLINK_EXPORT;
         import   : PLINK_IMPORT;
         bss_size : DWORD;
         s        : STRING;
         rrec     : RRELOC_REC;
         mzr      : MZ_RELOC;
         fix      : DWORD;
-        p        : INTEGER;
-        find     : BOOLEAN;
         selfr    : BOOLEAN;
         smz_code_seg  : WORD;
         smz_data_seg  : WORD;
         smz_bss_seg   : WORD;
+        er            : PRDFMETA;
+        k             : INTEGER;
 BEGIN
         err := FALSE;
         Assign(o, outfname);
@@ -279,7 +266,7 @@ BEGIN
         err := NOT IsOpen(o);
         start := NIL;
         FillChar(hdr, SizeOf(MZ_HEADER), #0);
-        BlockWrite(o, hdr, SizeOf(MZ_HEADER));
+        IF NOT err THEN BlockWrite(o, hdr, SizeOf(MZ_HEADER));
 
         ReWriteTemp(code);
         ReWriteTemp(data);
@@ -287,12 +274,12 @@ BEGIN
         err := err OR (NOT (IsOpen(code) AND IsOpen(data)));
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
-                Assign(i, r^.filename);
+                Assign(i, r^.filename^);
                 Reset(i);
 
                 err := NOT IsOpen(i) ;
                 IF (NOT err) AND ((r^.code_size > $10000) OR (r^.data_size > $10000)) THEN BEGIN
-                        System.Writeln(r^.filename, ': code or data segment is larger than 64K.');
+                        System.Writeln(r^.filename^, ': code or data segment is larger than 64K.');
                         Close(i);
                         err := TRUE;
                 END;
@@ -350,6 +337,19 @@ BEGIN
                 err := TRUE;
         END;
 
+        MapKind := MAP_SEG;
+        MapDigits := 4;
+        r := build_plan.rdfs;
+        WHILE r <> NIL DO BEGIN
+                r^.linker.map_seg[0] := smz_code_seg;
+                r^.linker.map_ofs[0] := r^.linker.smz_code_ofs;
+                r^.linker.map_seg[1] := smz_data_seg;
+                r^.linker.map_ofs[1] := r^.linker.smz_data_ofs;
+                r^.linker.map_seg[2] := smz_bss_seg;
+                r^.linker.map_ofs[2] := r^.linker.smz_bss_ofs;
+                r := r^.next;
+        END;
+
         { resolve segrelo }
         r := build_plan.rdfs;
         WHILE (r <> NIL) AND (NOT err) DO BEGIN
@@ -362,28 +362,15 @@ BEGIN
                                 Inc(rrec.offset, r^.linker.smz_data_ofs);
                         END;
 
-                        IF rrec.rseg = r^.code_segnum THEN BEGIN
-                                fix := smz_code_seg;
-                        END ELSE IF rrec.rseg = r^.data_segnum THEN BEGIN
-                                fix := smz_data_seg;
-                        END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
-                                fix := smz_bss_seg;
-                        END ELSE BEGIN
-                                import := LookupImportByRSeg(r, rrec.rseg);
-                                IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
-                                        System.Writeln(r^.filename, ': unresolved import.');
-                                        err := TRUE;
-                                        BREAK;
-                                END;
-                                IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.code_segnum THEN
-                                        fix := smz_code_seg
-                                ELSE IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.data_segnum THEN
-                                        fix := smz_data_seg
-                                ELSE IF import^.export^.rec.seg
-                                        = import^.export^.rdf^.bss_segnum THEN
-                                        fix := smz_bss_seg;
+                        IF NOT ResolveKind(r, rrec.rseg, er, k) THEN BEGIN
+                                err := TRUE;
+                                BREAK;
+                        END;
+                        CASE k OF
+                        0 : fix := smz_code_seg;
+                        1 : fix := smz_data_seg;
+                        2 : fix := smz_bss_seg;
+                        ELSE fix := 0;
                         END;
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 SetMem(code, RWIDTH16
@@ -433,7 +420,7 @@ BEGIN
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
                                 IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
-                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        System.Writeln(r^.filename^, ': unresolved import.');
                                         err := TRUE;
                                         BREAK;
                                 END;

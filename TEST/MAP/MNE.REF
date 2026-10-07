@@ -1,0 +1,15 @@
+Output : MNE.EXE
+Format : ne
+Entry  : start = 0003:0000
+
+N2.RDF
+  CODE  0001:0000  size 0000000F
+  DATA  0002:0000  size 0000000E
+    0001:0000  CODE say
+    0002:000C  DATA var2
+
+N1.RDF
+  CODE  0003:0000  size 00000044
+  DATA  0004:0000  size 00000015
+  BSS   0005:0000  size 00000002
+    0003:0000  CODE start
