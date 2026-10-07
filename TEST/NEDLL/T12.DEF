@@ -1,0 +1,4 @@
+LIBRARY T12
+DESCRIPTION 'NE DLL reachable'
+EXPORTS
+expfn @1

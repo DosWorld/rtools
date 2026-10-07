@@ -14,6 +14,7 @@ if errorlevel 1 goto fail
 fc /b MLGEN.DEF MYDLL.DFR
 if errorlevel 1 goto fail
 echo OK
+echo OK > CHECK.OK
 goto end
 :fail
 echo FAILED

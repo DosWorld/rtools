@@ -51,6 +51,7 @@ if errorlevel 1 goto fail
 fc /b E1.EXE E2.EXE > NUL
 if not errorlevel 1 goto fail
 echo OK
+echo OK > CHECK.OK
 goto end
 :fail
 echo FAILED

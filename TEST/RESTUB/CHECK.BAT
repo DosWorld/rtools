@@ -34,6 +34,7 @@ if not errorlevel 1 goto fail
 ..\..\BIN\RESTUB ..\NE\T01.REF ..\NE\T01.REF S_WIN.STB
 if not errorlevel 1 goto fail
 echo OK
+echo OK > CHECK.OK
 goto end
 :fail
 echo FAILED
