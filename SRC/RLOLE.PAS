@@ -24,8 +24,6 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlole;
 
-{$DEFINE DEBUG1}
-
 INTERFACE
 
 USES system2, rdffmt, rlo;
@@ -59,7 +57,6 @@ VAR     err           : BOOLEAN;
         hdr_le        : LE_HEADER;
 
         code_ofs      : DWORD;
-        data_ofs      : DWORD;
         bss_ofs       : DWORD;
 
         code_size     : DWORD;
@@ -84,17 +81,19 @@ VAR     err           : BOOLEAN;
         fix           : DWORD;
         ot1, ot2      : LE_OBJECT_TABLE_ENTRY;
         pTable        : LE_OBJECT_PAGE_TABLE_ENTRY;
-        rwidth        : BYTE;
         rval, rofs    : DWORD;
         rpage         : DWORD;
         psize, rsize  : DWORD;
+        modn          : STRING;
+        k             : INTEGER;
 BEGIN
         err := NOT IsOpen(input);
         FillChar(hdr, SizeOf(hdr), #0);
-        FillChar(code, SizeOf(hdr), #0);
-        FillChar(data, SizeOf(hdr), #0);
-        FillChar(o, SizeOf(o), #0);
-        FillChar(relocs, SizeOf(o), #0);
+        FillChar(code, SizeOf(BFILE), #0);
+        FillChar(data, SizeOf(BFILE), #0);
+        FillChar(o, SizeOf(BFILE), #0);
+        FillChar(relocs, SizeOf(BFILE), #0);
+        FillChar(inp, SizeOf(BFILE), #0);
 
         IF NOT err THEN BEGIN
                 Assign(o, outfname);
@@ -142,6 +141,29 @@ BEGIN
         END;
 
         Inc(ip, code_ofs);
+        IF err THEN BEGIN
+                IF IsOpen(o) THEN BEGIN
+                        SetDeleteOnClose(o, TRUE);
+                        Close(o);
+                END;
+                IF IsOpen(hdr) THEN Close(hdr);
+                IF IsOpen(code) THEN Close(code);
+                IF IsOpen(data) THEN Close(data);
+                IF IsOpen(inp) THEN Close(inp);
+                IF IsOpen(relocs) THEN Close(relocs);
+                LinkAndGenLE := TRUE;
+                EXIT;
+        END;
+        modn := outfname;
+        FOR k := Length(modn) DOWNTO 1 DO IF modn[k] IN [':', '\', '/'] THEN BEGIN
+                Delete(modn, 1, k);
+                BREAK;
+        END;
+        k := Pos('.', modn);
+        IF k > 0 THEN modn[0] := CHR(k - 1);
+        IF Length(modn) > 8 THEN modn[0] := #8;
+        FOR k := 1 TO Length(modn) DO modn[k] := UpCase(modn[k]);
+        IF Length(modn) = 0 THEN modn := 'A';
 
         IF bind_zrdx THEN BlockWrite(o, ZRDX_EXE_STUB, SizeOf(ZRDX_EXE_STUB))
         ELSE BlockWrite(o, SIMPLE_EXE_STUB, SizeOf(SIMPLE_EXE_STUB));
@@ -196,7 +218,7 @@ BEGIN
 
         hdr_le.resourceTblOfs := FilePos(o) - le_start;
         hdr_le.residentNameTblOfs := hdr_le.resourceTblOfs;
-        BlockWrite(o, outfname[0], ORD(outfname[0]) + 1);
+        BlockWrite(o, modn[0], ORD(modn[0]) + 1);
         WriteWord(o, 0);
         WriteByte(o, 0);
         hdr_le.entryTblOfs := FilePos(o) - le_start;
@@ -218,7 +240,6 @@ BEGIN
                 fix := code_ofs;
                 IF NOT selfr THEN BEGIN
                         IF rrec.rseg = code_segnum THEN Inc(fix, code_ofs)
-                        ELSE IF rrec.rseg = data_segnum THEN Inc(fix, data_ofs)
                         ELSE IF rrec.rseg = bss_segnum THEN Inc(fix, bss_ofs);
                 END;
 
@@ -236,6 +257,11 @@ BEGIN
                         WriteDword(relocs, rrec.offset div hdr_le.pageSize);
                         WriteDword(relocs, rrec.offset mod hdr_le.pageSize);
                         WriteDword(relocs, GetDWord(code, rrec.offset));
+                        IF (rrec.offset mod hdr_le.pageSize) + rrec.width > hdr_le.pageSize THEN BEGIN
+                                WriteDword(relocs, (rrec.offset div hdr_le.pageSize) + 1);
+                                WriteDword(relocs, (rrec.offset mod hdr_le.pageSize) - hdr_le.pageSize);
+                                WriteDword(relocs, GetDWord(code, rrec.offset));
+                        END;
                 END;
         END;
 
@@ -250,7 +276,7 @@ BEGIN
                         rval := ReadDWord(relocs);
                         IF rpage = (i - 1) THEN BEGIN
                                 WriteByte(o, 7);
-                                IF rofs < $10000 THEN BEGIN
+                                IF rval < $10000 THEN BEGIN
                                         WriteByte(o, 0);
                                         WriteWord(o, rofs);
                                         WriteByte(o, 1);

@@ -1,0 +1,6 @@
+NAME T03
+IMPORTS
+MYDLL.hello
+MYDLL.answer
+ansord=MYDLL.5
+KERNEL32.ExitProcess

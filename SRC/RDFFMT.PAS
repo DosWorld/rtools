@@ -279,7 +279,7 @@ BEGIN
         dst.seg := ORD(src[2]);
         dst.offset := get_dword(src, 3);
         i := 0;
-        WHILE (i < SizeOf(RDFNAME)) AND (src[i + 7] <> #0) DO BEGIN
+        WHILE (i < SizeOf(RDFNAME) - 1) AND (i + 7 <= ORD(src[0])) AND (src[i + 7] <> #0) DO BEGIN
                 Inc(i);
                 dst.name[i] := src[i + 6];
         END;
@@ -293,7 +293,7 @@ BEGIN
         dst.flags := ORD(src[1]);
         dst.seg := get_word(src, 2);
         i := 0;
-        WHILE (i < SizeOf(RDFNAME)) AND (src[i + 4] <> #0) DO BEGIN
+        WHILE (i < SizeOf(RDFNAME) - 1) AND (i + 4 <= ORD(src[0])) AND (src[i + 4] <> #0) DO BEGIN
                 Inc(i);
                 dst.name[i] := src[i + 3];
         END;

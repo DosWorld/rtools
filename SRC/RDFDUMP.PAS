@@ -193,7 +193,7 @@ BEGIN
         System.Writeln('RDFDUMP for NASM-0.98.39  (c) 2022 by DosWorld.  MIT License');
         System.Writeln;
         IF PARAMCOUNT <> 1 THEN BEGIN
-                WriteLnErr('usage: RDUMP filename.rdf');
+                WriteLnErr('usage: RDFDUMP filename.rdf');
                 Halt(1);
         END;
         Assign(f, ParamStr(1));
@@ -215,7 +215,7 @@ BEGIN
         System.WriteLn;
         System.WriteLn('Header record(s)');
         System.WriteLn;
-        WHILE hdrlen <> 0 DO BEGIN
+        WHILE hdrlen > 0 DO BEGIN
                 System.Write(hexdw(FilePos(f)), ' ');
                 BlockRead(f, rtype, 1);
                 BlockRead(f, rdata[0], 1);

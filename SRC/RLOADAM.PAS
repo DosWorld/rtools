@@ -24,8 +24,6 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rloadam;
 
-{$DEFINE DEBUG1}
-
 INTERFACE
 
 USES system2, rdffmt, rlo;
@@ -47,9 +45,6 @@ FUNCTION LinkAndGenAdam(VAR input : BFILE;
 VAR     dst_ofs     : DWORD;
         c           : STRING;
         rec         : RRELOC_REC;
-        alloc_size  : WORD;
-        jmp_instr   : ARRAY[0..3] OF BYTE;
-        jmp_addr    : WORD;
 
         err         : BOOLEAN;
 
@@ -59,17 +54,12 @@ VAR     dst_ofs     : DWORD;
         data        : BFILE;
         hdr         : BFILE;
 
-        code_size   : DWORD;
-        data_ofs    : DWORD;
-        data_size   : DWORD;
-        bss_ofs     : DWORD;
 
         ip          : DWORD;
 
         code_segnum : WORD;
         data_segnum : WORD;
         bss_segnum  : WORD;
-        self        : BOOLEAN;
         bss_size    : DWORD;
         hdr_adam    : ADAM_HEADER;
         s           : STRING;
@@ -97,8 +87,32 @@ BEGIN
         END;
 
         IF NOT err THEN err := err OR MergeCodeDataBss(input, i, FALSE);
+        IF err THEN BEGIN
+                IF IsOpen(o) THEN BEGIN
+                        SetDeleteOnClose(o, TRUE);
+                        Close(o);
+                END;
+                IF IsOpen(hdr) THEN Close(hdr);
+                IF IsOpen(code) THEN Close(code);
+                IF IsOpen(data) THEN Close(data);
+                IF IsOpen(i) THEN Close(i);
+                LinkAndGenAdam := TRUE;
+                EXIT;
+        END;
         Seek(i, 0);
         err := err OR (NOT ReadRDF(i, hdr, code, data, code_segnum, data_segnum, bss_segnum));
+        IF err THEN BEGIN
+                IF IsOpen(o) THEN BEGIN
+                        SetDeleteOnClose(o, TRUE);
+                        Close(o);
+                END;
+                IF IsOpen(hdr) THEN Close(hdr);
+                IF IsOpen(code) THEN Close(code);
+                IF IsOpen(data) THEN Close(data);
+                IF IsOpen(i) THEN Close(i);
+                LinkAndGenAdam := TRUE;
+                EXIT;
+        END;
 
         FilePosAlign(code, 2);
         FilePosAlign(data, 2);
@@ -119,7 +133,6 @@ BEGIN
         Seek(hdr, 0);
         WHILE RDF_NLOOKUPREC(hdr, FileSize(hdr), RREC_RELOC, c) AND (NOT err) DO BEGIN
                 GET_RELOC_REC(c, rec);
-                self := (rec.seg AND $40) <> 0;
                 dst_ofs := 0;                
                 IF rec.rseg = code_segnum THEN
                         dst_ofs := 0

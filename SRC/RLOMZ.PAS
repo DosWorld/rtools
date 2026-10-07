@@ -24,8 +24,6 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlomz;
 
-{$DEFINE DEBUG1}
-
 INTERFACE
 
 USES system2, rdffmt, rlo;
@@ -62,7 +60,7 @@ VAR     err      : BOOLEAN;
         s        : STRING;
         rrec     : RRELOC_REC;
         mzr      : MZ_RELOC;
-        fix      : WORD;
+        fix      : DWORD;
         p        : INTEGER;
         find     : BOOLEAN;
         selfr    : BOOLEAN;
@@ -149,6 +147,11 @@ BEGIN
                                 fix := r^.linker.hmz_bss_seg;
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
+                                IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
+                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        err := TRUE;
+                                        BREAK;
+                                END;
                                 IF import^.export^.rec.seg
                                         = import^.export^.rdf^.code_segnum THEN
                                         fix := import^.export^.rdf^.linker.hmz_code_seg
@@ -171,9 +174,16 @@ BEGIN
                                         , fix);
                                 mzr.seg := r^.linker.hmz_data_seg;
                         END;
-                        mzr.ofs := rrec.offset;
-                        BlockWrite(o, mzr, SizeOf(MZ_RELOC));
-                        Inc(hdr.relocs_count);
+                        IF (rrec.seg = r^.code_segnum) OR (rrec.seg = r^.data_segnum) THEN BEGIN
+                                IF hdr.relocs_count = $FFFF THEN BEGIN
+                                        System.Writeln('Too many relocations (MZ).');
+                                        err := TRUE;
+                                        BREAK;
+                                END;
+                                mzr.ofs := rrec.offset;
+                                BlockWrite(o, mzr, SizeOf(MZ_RELOC));
+                                Inc(hdr.relocs_count);
+                        END;
                 END;
                 r := r^.next;
         END;
@@ -192,6 +202,11 @@ BEGIN
                         END ELSE IF rrec.rseg = r^.bss_segnum THEN BEGIN
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
+                                IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
+                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        err := TRUE;
+                                        BREAK;
+                                END;
                                 Inc(fix, import^.export^.rec.offset);
                         END;
 
@@ -250,7 +265,7 @@ VAR     err      : BOOLEAN;
         s        : STRING;
         rrec     : RRELOC_REC;
         mzr      : MZ_RELOC;
-        fix      : WORD;
+        fix      : DWORD;
         p        : INTEGER;
         find     : BOOLEAN;
         selfr    : BOOLEAN;
@@ -355,6 +370,11 @@ BEGIN
                                 fix := smz_bss_seg;
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
+                                IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
+                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        err := TRUE;
+                                        BREAK;
+                                END;
                                 IF import^.export^.rec.seg
                                         = import^.export^.rdf^.code_segnum THEN
                                         fix := smz_code_seg
@@ -376,9 +396,16 @@ BEGIN
                                         , fix);
                                 mzr.seg := smz_data_seg;
                         END;
-                        mzr.ofs := rrec.offset;
-                        BlockWrite(o, mzr, SizeOf(MZ_RELOC));
-                        Inc(hdr.relocs_count);
+                        IF (rrec.seg = r^.code_segnum) OR (rrec.seg = r^.data_segnum) THEN BEGIN
+                                IF hdr.relocs_count = $FFFF THEN BEGIN
+                                        System.Writeln('Too many relocations (MZ).');
+                                        err := TRUE;
+                                        BREAK;
+                                END;
+                                mzr.ofs := rrec.offset;
+                                BlockWrite(o, mzr, SizeOf(MZ_RELOC));
+                                Inc(hdr.relocs_count);
+                        END;
                 END;
                 r := r^.next;
         END;
@@ -405,6 +432,11 @@ BEGIN
                                 IF NOT selfr THEN Inc(fix, r^.linker.smz_bss_ofs);
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
+                                IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
+                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        err := TRUE;
+                                        BREAK;
+                                END;
                                 IF import^.export^.rec.seg = import^.export^.rdf^.code_segnum THEN BEGIN
                                         IF selfr THEN fix := -r^.linker.smz_code_ofs;
                                 END ELSE IF import^.export^.rec.seg = import^.export^.rdf^.data_segnum THEN BEGIN

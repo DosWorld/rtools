@@ -24,8 +24,6 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlocom;
 
-{$DEFINE DEBUG1}
-
 INTERFACE
 
 USES system2, rdffmt, rlo;
@@ -46,7 +44,6 @@ FUNCTION LinkAndGenCOM(VAR input : BFILE;
 VAR     dst_ofs     : DWORD;
         c           : STRING;
         rec         : RRELOC_REC;
-        alloc_size  : WORD;
         jmp_instr   : ARRAY[0..3] OF BYTE;
         jmp_addr    : WORD;
         need_jmp    : BOOLEAN;
@@ -61,8 +58,6 @@ VAR     dst_ofs     : DWORD;
         hdr         : BFILE;
 
         code_size   : DWORD;
-        data_ofs    : DWORD;
-        data_size   : DWORD;
         bss_ofs     : DWORD;
 
         ip          : DWORD;
@@ -91,9 +86,33 @@ BEGIN
         END;
 
         IF NOT err THEN err := err OR MergeCodeDataBss(input, i, reserv_bss);
+        IF err THEN BEGIN
+                IF IsOpen(o) THEN BEGIN
+                        SetDeleteOnClose(o, TRUE);
+                        Close(o);
+                END;
+                IF IsOpen(hdr) THEN Close(hdr);
+                IF IsOpen(code) THEN Close(code);
+                IF IsOpen(data) THEN Close(data);
+                IF IsOpen(i) THEN Close(i);
+                LinkAndGenCOM := TRUE;
+                EXIT;
+        END;
 
         Seek(i, 0);
         err := err OR (NOT ReadRDF(i, hdr, code, data, code_segnum, data_segnum, bss_segnum));
+        IF err THEN BEGIN
+                IF IsOpen(o) THEN BEGIN
+                        SetDeleteOnClose(o, TRUE);
+                        Close(o);
+                END;
+                IF IsOpen(hdr) THEN Close(hdr);
+                IF IsOpen(code) THEN Close(code);
+                IF IsOpen(data) THEN Close(data);
+                IF IsOpen(i) THEN Close(i);
+                LinkAndGenCOM := TRUE;
+                EXIT;
+        END;
 
         FilePosAlign(code, 2);
         FilePosAlign(data, 2);

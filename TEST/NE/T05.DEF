@@ -1,0 +1,5 @@
+NAME T05
+DESCRIPTION 'NE exports and resources'
+EXPORTS
+say @5 RESIDENTNAME
+start

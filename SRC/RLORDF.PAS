@@ -24,8 +24,6 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlordf;
 
-{$DEFINE DEBUG1}
-
 INTERFACE
 
 USES system2, rdffmt, rlo;
@@ -43,9 +41,7 @@ BEGIN
         err := NOT IsOpen(o);
         IF NOT err THEN BEGIN
                 err := MergeCodeDataBss(input, o, reserv_bss);
-{$IFNDEF DEBUG}
                 IF err THEN SetDeleteOnClose(o, TRUE);
-{$ENDIF}
                 Close(o);
         END;
         LinkAndGenRDF := err;

@@ -24,8 +24,6 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rloqbe;
 
-{$DEFINE DEBUG1}
-
 
 INTERFACE
 

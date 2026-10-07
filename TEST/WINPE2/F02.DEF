@@ -1,0 +1,5 @@
+NAME F02
+IMPORTS
+FWDDLL.fhello
+FWDDLL.fans
+KERNEL32.ExitProcess

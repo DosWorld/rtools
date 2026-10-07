@@ -24,8 +24,6 @@ https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
 UNIT rlo;
 
-{$DEFINE DEBUG1}
-
 INTERFACE
 
 USES system2, rdffmt;
@@ -55,6 +53,7 @@ TLINK_IMPORT = RECORD
         export  : PLINK_EXPORT;
         newrseg : WORD;
         resolv  : BOOLEAN;
+        ext     : BOOLEAN;
 END;
 
 PIMPORTS = ^TIMPORTS;
@@ -83,6 +82,8 @@ TLINKDATA = RECORD
         hmz_bss_size  : WORD;
 END;
 
+TEXTIMPORT = FUNCTION(VAR name : RDFNAME) : BOOLEAN;
+
 TRDFMETA = RECORD
         filename    : STRING;
         file_code   : DWORD;
@@ -107,6 +108,10 @@ IMAGE_BUILD_PLAN = RECORD
         linked_out  : BFILE;
 END;
 
+VAR
+ExtImport   : TEXTIMPORT;
+ExtImportOn : BOOLEAN;
+
 FUNCTION AlignValue(value : DWORD; align : DWORD) : DWORD;
 FUNCTION ReadRDF(VAR src, dst_headers, dst_code, dst_data : BFILE; VAR code_segnum, data_segnum, bss_segnum : WORD) : BOOLEAN;
 FUNCTION FindEntryPoint(hdr : BFILE; hdr_size : DWORD; VAR name : RDFNAME; VAR ip : DWORD) : BOOLEAN;
@@ -121,7 +126,7 @@ FUNCTION FindExportRdf(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : 
 FUNCTION ResolveImports(VAR build_plan : IMAGE_BUILD_PLAN; rdf : PRDFMETA) : BOOLEAN;
 FUNCTION LookupImportByRSeg(r : PRDFMETA; rseg : WORD) : PLINK_IMPORT;
 
-FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME; strict_import : BOOLEAN) : BOOLEAN;
+FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME) : BOOLEAN;
 PROCEDURE FreeOutOfPlan(VAR build_plan : IMAGE_BUILD_PLAN);
 PROCEDURE DestroyPlan(VAR build_plan : IMAGE_BUILD_PLAN);
 
@@ -445,26 +450,29 @@ END;
 
 FUNCTION FindExportRdf(VAR build_plan : IMAGE_BUILD_PLAN; VAR name : RDFNAME) : PLINK_EXPORT;
 VAR     export   : PLINK_EXPORT;
+        found    : PLINK_EXPORT;
         exports  : PEXPORTS;
         r        : PRDFMETA;
         i        : INTEGER;
 BEGIN
         export := NIL;
         r := build_plan.rdfs;
-        WHILE (r <> NIL) AND (export = NIL) DO BEGIN
+        WHILE r <> NIL DO BEGIN
+                found := NIL;
                 exports := r^.linker.export;
-                WHILE (exports <> NIL) AND (export = NIL) DO BEGIN
+                WHILE (exports <> NIL) AND (found = NIL) DO BEGIN
                         i := 1;
                         WHILE i <= exports^.export_count DO BEGIN
                                 IF exports^.export[i].rec.name[0] = name[0] THEN
                                         IF exports^.export[i].rec.name = name THEN BEGIN
-                                                export := @exports^.export[i];
+                                                found := @exports^.export[i];
                                                 BREAK;
                                         END;
                                 Inc(i);
                         END;
                         exports := exports^.next;
                 END;
+                IF found <> NIL THEN export := found;
                 r := r^.next;
         END;
         FindExportRdf := export;
@@ -506,14 +514,18 @@ BEGIN
                         WHILE (NOT err) AND (i <= import^.import_count) DO BEGIN
                                 export := FindExportRdf(build_plan, import^.import[i].rec.name);
                                 import^.import[i].export := export;
-                                err := export = NIL;
+                                import^.import[i].ext := FALSE;
+                                IF (export = NIL) AND ExtImportOn THEN
+                                        import^.import[i].ext := ExtImport(import^.import[i].rec.name);
+                                err := (export = NIL) AND (NOT import^.import[i].ext);
                                 IF err THEN BEGIN
                                         System.Writeln('Could not resolve ', import^.import[i].rec.name);
-                                END ELSE IF CountExports(build_plan, import^.import[i].rec.name) > 1 THEN BEGIN
+                                END ELSE IF (export <> NIL)
+                                        AND (CountExports(build_plan, import^.import[i].rec.name) > 1) THEN BEGIN
                                         System.Writeln('Warning: symbol ', import^.import[i].rec.name
                                                 , ' is defined more than once, using ', export^.rdf^.filename);
                                 END;
-                                IF (NOT err) AND (NOT export^.rdf^.linker.linked) THEN BEGIN
+                                IF (NOT err) AND (export <> NIL) AND (NOT export^.rdf^.linker.linked) THEN BEGIN
                                         err := ResolveImports(build_plan, export^.rdf);
                                 END;
                                 Inc(i);
@@ -524,7 +536,7 @@ BEGIN
         ResolveImports := err;
 END;
 
-FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME; strict_import : BOOLEAN) : BOOLEAN;
+FUNCTION CreateBuildPlan(VAR build_plan : IMAGE_BUILD_PLAN; entry_name : RDFNAME) : BOOLEAN;
 VAR     err      : BOOLEAN;
         r        : PRDFMETA;
         startRdf : PRDFMETA;
@@ -742,6 +754,11 @@ BEGIN
                                 IF NOT selfr THEN Inc(fix, r^.linker.smz_bss_ofs);
                         END ELSE BEGIN
                                 import := LookupImportByRSeg(r, rrec.rseg);
+                                IF (import = NIL) OR (import^.export = NIL) THEN BEGIN
+                                        System.Writeln(r^.filename, ': unresolved import.');
+                                        err := TRUE;
+                                        BREAK;
+                                END;
                                 IF import^.export^.rec.seg = code_segnum THEN BEGIN
                                         rrec.rseg := code_segnum;
                                         IF selfr THEN fix := -r^.linker.smz_code_ofs;
@@ -784,11 +801,15 @@ END;
 
 PROCEDURE FreeOutOfPlan(VAR build_plan : IMAGE_BUILD_PLAN);
 VAR     r        : PRDFMETA;
+        prev     : PRDFMETA;
+        nxt      : PRDFMETA;
         export   : PEXPORTS;
         import   : PIMPORTS;
 BEGIN
+        prev := NIL;
         r := build_plan.rdfs;
         WHILE r <> NIL DO BEGIN
+                nxt := r^.next;
                 IF NOT r^.linker.linked THEN BEGIN
                         WHILE r^.linker.export <> NIL DO BEGIN
                                 export := r^.linker.export;
@@ -800,8 +821,10 @@ BEGIN
                                 r^.linker.import := r^.linker.import^.next;
                                 FreeMem(import, SizeOf(TIMPORTS));
                         END;
-                END;
-                r := r^.next;
+                        IF prev = NIL THEN build_plan.rdfs := nxt ELSE prev^.next := nxt;
+                        FreeMem(r, SizeOf(TRDFMETA));
+                END ELSE prev := r;
+                r := nxt;
         END;
 END;
 
@@ -828,4 +851,6 @@ BEGIN
         Close(build_plan.hdr);
 END;
 
+BEGIN
+        ExtImportOn := FALSE;
 END.

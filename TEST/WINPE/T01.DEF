@@ -1,0 +1,5 @@
+NAME T01
+IMPORTS
+KERNEL32.GetStdHandle
+KERNEL32.WriteFile
+KERNEL32.ExitProcess

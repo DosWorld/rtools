@@ -1,0 +1,4 @@
+LIBRARY FWDDLL
+EXPORTS
+fhello=MYDLL.hello
+fans=MYDLL.#5

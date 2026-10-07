@@ -63,14 +63,33 @@ BEGIN
         END;
 END;
 
+FUNCTION rdl_find(VAR f : BFILE; VAR modname : STRING; VAR start, total : DWORD) : BOOLEAN;
+VAR     n : STRING;
+BEGIN
+        rdl_find := FALSE;
+        IF GET_FILE_TYPE(f) <> FILE_RDL THEN EXIT;
+        WHILE RDL_NEXT_MODULE(f, n) DO BEGIN
+                start := FilePos(f);
+                Seek(f, start + Length(RDOFF2_SIGN));
+                total := ReadDWord(f) + Length(RDOFF2_SIGN) + SizeOf(DWORD);
+                IF n = modname THEN BEGIN
+                        Seek(f, start);
+                        rdl_find := TRUE;
+                        EXIT;
+                END;
+                Seek(f, start + total);
+        END;
+END;
+
 FUNCTION rlib_add(VAR libname, filename, modname : STRING) : BOOLEAN;
 VAR     f, o  : BFILE;
         err   : BOOLEAN;
+        st    : DWORD;
+        tot   : DWORD;
 BEGIN
         err := FALSE;
-        IF Length(modname) > 63 THEN modname[0] := #63;
-        IF (Length(modname) = 0) OR (modname[1] = '.') THEN BEGIN
-                System.writeln('Bad module name: ', modname);
+        IF (Length(modname) = 0) OR (modname[1] = '.') OR (Length(modname) > 63) THEN BEGIN
+                System.writeln('Bad module name (1..63 characters, not starting with dot): ', modname);
                 err := TRUE;
         END;
         IF NOT err THEN BEGIN
@@ -92,6 +111,23 @@ BEGIN
                         err := TRUE;
                 END ELSE IF GET_FILE_TYPE(o) <> FILE_RDF THEN BEGIN
                         System.writeln(filename, ' is not rdf');
+                        err := TRUE;
+                END;
+        END;
+        IF (NOT err) AND (FileSize(o) < 10) THEN BEGIN
+                System.writeln(filename, ' is damaged');
+                err := TRUE;
+        END;
+        IF NOT err THEN BEGIN
+                Seek(o, 6);
+                IF ReadDWord(o) + 10 <> FileSize(o) THEN BEGIN
+                        System.writeln(filename, ' is damaged');
+                        err := TRUE;
+                END;
+        END;
+        IF NOT err THEN BEGIN
+                IF rdl_find(f, modname, st, tot) THEN BEGIN
+                        System.writeln('Module ', modname, ' is already in ', libname);
                         err := TRUE;
                 END;
         END;
@@ -137,15 +173,110 @@ BEGIN
         rlib_list := err;
 END;
 
+FUNCTION rlib_delete(VAR libname, modname : STRING) : BOOLEAN;
+VAR     f, t  : BFILE;
+        n     : STRING;
+        st    : DWORD;
+        tot   : DWORD;
+        found : BOOLEAN;
+        err   : BOOLEAN;
+BEGIN
+        err := FALSE;
+        found := FALSE;
+        Assign(f, libname);
+        Reset(f);
+        IF NOT IsOpen(f) THEN BEGIN
+                file_err(libname, f.ioResult);
+                rlib_delete := TRUE;
+                EXIT;
+        END;
+        IF GET_FILE_TYPE(f) <> FILE_RDL THEN BEGIN
+                System.writeln(libname, ' is not rdl');
+                Close(f);
+                rlib_delete := TRUE;
+                EXIT;
+        END;
+        ReWriteTemp(t);
+        IF NOT IsOpen(t) THEN BEGIN
+                System.writeln('Could not create temporary file (check TMP/TEMP).');
+                Close(f);
+                rlib_delete := TRUE;
+                EXIT;
+        END;
+        RDL_CREATE(t);
+        Seek(t, FileSize(t));
+        WHILE RDL_NEXT_MODULE(f, n) DO BEGIN
+                st := FilePos(f);
+                Seek(f, st + Length(RDOFF2_SIGN));
+                tot := ReadDWord(f) + Length(RDOFF2_SIGN) + SizeOf(DWORD);
+                Seek(f, st);
+                IF n = modname THEN found := TRUE
+                ELSE BEGIN
+                        RDL_APPEND_MODULE(t, n);
+                        BlockCopy(f, t, tot);
+                END;
+                Seek(f, st + tot);
+        END;
+        IF NOT found THEN BEGIN
+                System.writeln('Module ', modname, ' is not in ', libname);
+                err := TRUE;
+        END ELSE BEGIN
+                Seek(f, 0);
+                Seek(t, 0);
+                BlockCopy(t, f, FileSize(t));
+                Truncate(f);
+        END;
+        Close(t);
+        Close(f);
+        rlib_delete := err;
+END;
+
+FUNCTION rlib_extract(VAR libname, modname, outname : STRING) : BOOLEAN;
+VAR     f, o  : BFILE;
+        st    : DWORD;
+        tot   : DWORD;
+        err   : BOOLEAN;
+BEGIN
+        err := FALSE;
+        Assign(f, libname);
+        Reset(f);
+        IF NOT IsOpen(f) THEN BEGIN
+                file_err(libname, f.ioResult);
+                rlib_extract := TRUE;
+                EXIT;
+        END;
+        IF NOT rdl_find(f, modname, st, tot) THEN BEGIN
+                System.writeln('Module ', modname, ' is not in ', libname, ' (or it is not rdl)');
+                Close(f);
+                rlib_extract := TRUE;
+                EXIT;
+        END;
+        Assign(o, outname);
+        ReWrite(o);
+        IF NOT IsOpen(o) THEN BEGIN
+                file_err(outname, o.ioResult);
+                err := TRUE;
+        END ELSE BEGIN
+                BlockCopy(f, o, tot);
+                Close(o);
+        END;
+        Close(f);
+        rlib_extract := err;
+END;
+
 CONST
 ARG_CMD_CREATE = 'c';
 ARG_CMD_ADD    = 'a';
 ARG_CMD_LIST   = 'l';
+ARG_CMD_DEL    = 'd';
+ARG_CMD_EXT    = 'x';
 
-OPTIONS_DESC : ARRAY[0..2] OF TOPT = (
+OPTIONS_DESC : ARRAY[0..4] OF TOPT = (
 (name: ARG_CMD_CREATE; otype: OPTCMD;  help: 'Create empty library arg0 (or overwrite it)'),
 (name: ARG_CMD_ADD;    otype: OPTCMD;  help: 'Add to library arg0 module from file arg1 with name arg2'),
-(name: ARG_CMD_LIST;   otype: OPTCMD;  help: 'Show module names from library arg0')
+(name: ARG_CMD_LIST;   otype: OPTCMD;  help: 'Show module names from library arg0'),
+(name: ARG_CMD_DEL;    otype: OPTCMD;  help: 'Delete module arg1 from library arg0'),
+(name: ARG_CMD_EXT;    otype: OPTCMD;  help: 'Extract module arg1 from library arg0 into file arg2')
 );
 
 VAR     myArgs   : TARGSTATE;
@@ -172,12 +303,19 @@ BEGIN
         IF (cmd = ARG_CMD_LIST) AND (pcount <> 1) THEN
                 SetArgsErr(myArgs, 'Required parameters: library.rdl');
 
+        IF (cmd = ARG_CMD_DEL) AND (pcount <> 2) THEN
+                SetArgsErr(myArgs, 'Required parameters: library.rdl module_name');
+        IF (cmd = ARG_CMD_EXT) AND (pcount <> 3) THEN
+                SetArgsErr(myArgs, 'Required parameters: library.rdl module_name file.rdf');
+
         WriteArgsErrors(myArgs);
         IF ArgsError(myArgs) THEN Halt(1);
 
         err := FALSE;
         IF cmd = ARG_CMD_CREATE THEN err := rlib_create(libname)
         ELSE IF cmd = ARG_CMD_ADD THEN err := rlib_add(libname, filename, modname)
-        ELSE IF cmd = ARG_CMD_LIST THEN err := rlib_list(libname);
+        ELSE IF cmd = ARG_CMD_LIST THEN err := rlib_list(libname)
+        ELSE IF cmd = ARG_CMD_DEL THEN err := rlib_delete(libname, filename)
+        ELSE IF cmd = ARG_CMD_EXT THEN err := rlib_extract(libname, filename, modname);
         IF err THEN Halt(1);
 END.

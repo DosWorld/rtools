@@ -1117,6 +1117,140 @@ $3D,$44,$4F,$53,$33,$32,$2E,$45,$58,$45,$00,$6E,$6F,$74,$20,$66,
 $6F,$75,$6E,$64,$0A,$0D,$24,$00,$00,$80,$00,$00,$00,$5C,$00,$00,
 $00,$6C,$00);
 
+{ ====================================================
+  NE Data structures and constants
+  ==================================================== }
+
+CONST
+NE_SIGN        = $454E;
+NE_OS_OS2      = 1;
+NE_PROG_DGROUP_SINGLE   = $01;
+NE_PROG_DGROUP_MULTIPLE = $02;
+NE_PROG_GLOBALINIT      = $04;
+NE_PROG_PROTMODE        = $08;
+NE_APP_PMAPI            = $03;
+NE_APP_DLL              = $80;
+NE_ENT_EXPORTED         = $01;
+NE_ENT_SINGLE           = $02;
+NE_SEG_DATA      = $0001;
+NE_SEG_MOVEABLE  = $0010;
+NE_SEG_PRELOAD   = $0040;
+NE_SEG_HASRELOC  = $0100;
+NE_SEG_DPL3      = $0C00;
+NE_SEG_DISCARD   = $1000;
+NE_REL_BASE      = $02;
+NE_REL_PTR       = $03;
+NE_REL_OFFS      = $05;
+NE_REL_INTERNAL  = $00;
+NE_REL_ORDINAL   = $01;
+NE_REL_NAME      = $02;
+
+TYPE
+NE_HEADER = RECORD
+        sign         : WORD;
+        link_major   : BYTE;
+        link_minor   : BYTE;
+        entry_ofs    : WORD;
+        entry_len    : WORD;
+        crc          : DWORD;
+        prog_flags   : BYTE;
+        app_flags    : BYTE;
+        auto_data    : WORD;
+        heap_size    : WORD;
+        stack_size   : WORD;
+        ip           : WORD;
+        cs           : WORD;
+        sp           : WORD;
+        ss           : WORD;
+        seg_count    : WORD;
+        mod_count    : WORD;
+        nonres_len   : WORD;
+        seg_ofs      : WORD;
+        res_ofs      : WORD;
+        resname_ofs  : WORD;
+        modref_ofs   : WORD;
+        impname_ofs  : WORD;
+        nonres_ofs   : DWORD;
+        mov_entries  : WORD;
+        align_shift  : WORD;
+        res_count    : WORD;
+        target_os    : BYTE;
+        other_flags  : BYTE;
+        thunk_ret    : WORD;
+        thunk_seg    : WORD;
+        swap_area    : WORD;
+        win_version  : WORD;
+END;
+
+NE_SEGMENT = RECORD
+        sector       : WORD;
+        length       : WORD;
+        attr         : WORD;
+        alloc        : WORD;
+END;
+
+NE_RELOC = RECORD
+        rtype        : BYTE;
+        flags        : BYTE;
+        ofs          : WORD;
+        tseg         : WORD;
+        tofs         : WORD;
+END;
+
+{ ====================================================
+  DPMIST16.BIN - Part of HX DOS Extender https://japheth.de/HX.html
+  Included with Japheth's permit:
+  https://www.bttr-software.de/forum/board_entry.php?id=18630&category=8
+  Should be applied to NE
+  ==================================================== }
+CONST NE_EXE_STUB : ARRAY[0..511] OF BYTE = (
+$4D,$5A,$00,$00,$01,$00,$00,$00,$04,$00,$14,$06,$FF,$FF,$30,$06,
+$00,$00,$00,$00,$D5,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00,$00,
+$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,
+$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,
+$33,$D2,$B1,$20,$B4,$3F,$CD,$21,$72,$78,$33,$F6,$AD,$3D,$4D,$5A,
+$75,$6B,$83,$C6,$04,$AD,$8B,$F8,$23,$C0,$74,$1D,$50,$33,$C9,$8B,
+$54,$10,$B8,$00,$42,$CD,$21,$59,$C1,$E1,$02,$2B,$E1,$8B,$D4,$1E,
+$16,$1F,$B4,$3F,$CD,$21,$1F,$72,$44,$AD,$C1,$E0,$04,$8B,$D0,$33,
+$C9,$B8,$00,$42,$CD,$21,$33,$D2,$B4,$3F,$B9,$00,$60,$CD,$21,$72,
+$31,$3B,$C1,$73,$28,$B4,$3E,$CD,$21,$8B,$CF,$E3,$17,$8B,$FC,$8C,
+$D8,$36,$8B,$5D,$02,$C1,$E3,$04,$36,$03,$1D,$01,$07,$83,$C7,$04,
+$E2,$EF,$8B,$E7,$8B,$DC,$1E,$52,$8B,$D5,$16,$1F,$CB,$BA,$C3,$00,
+$EB,$03,$BA,$B6,$00,$0E,$1F,$E8,$0B,$00,$BA,$9A,$00,$E8,$05,$00,
+$B8,$F0,$4C,$CD,$21,$B4,$09,$CD,$21,$C3,$0D,$0A,$70,$72,$6F,$67,
+$72,$61,$6D,$20,$6C,$6F,$61,$64,$69,$6E,$67,$20,$61,$62,$6F,$72,
+$74,$65,$64,$0D,$0A,$24,$0D,$0A,$72,$65,$61,$64,$20,$65,$72,$72,
+$6F,$72,$24,$0D,$0A,$62,$61,$64,$20,$6C,$6F,$61,$64,$65,$72,$20,
+$66,$69,$6C,$65,$24,$FC,$A1,$02,$00,$83,$E8,$30,$8E,$D0,$BC,$B0,
+$02,$8B,$EC,$83,$EC,$50,$8B,$F4,$06,$26,$8E,$06,$2C,$00,$E8,$23,
+$00,$0E,$1F,$E8,$39,$00,$8B,$F7,$16,$1F,$E8,$4C,$00,$BA,$95,$01,
+$72,$83,$B9,$D5,$00,$16,$07,$33,$FF,$33,$F6,$2E,$F3,$A4,$07,$1E,
+$51,$0E,$1F,$CB,$2B,$FF,$B0,$00,$B9,$FF,$FF,$F2,$AE,$AE,$75,$FB,
+$47,$47,$26,$8A,$05,$36,$88,$04,$46,$47,$22,$C0,$75,$F4,$C3,$2B,
+$FF,$BE,$90,$01,$B9,$05,$00,$F3,$A6,$74,$0D,$B0,$00,$B5,$7F,$F2,
+$AE,$26,$3A,$05,$75,$EB,$2B,$FF,$C3,$8D,$7E,$00,$8B,$D7,$56,$BE,
+$AA,$01,$B9,$0C,$00,$2E,$AC,$88,$05,$47,$E2,$F9,$88,$0D,$B8,$20,
+$3D,$CD,$21,$5E,$73,$28,$23,$F6,$F9,$74,$24,$8B,$FA,$B9,$44,$00,
+$26,$8A,$04,$88,$05,$46,$47,$3C,$3B,$74,$06,$3C,$00,$E0,$F1,$33,
+$F6,$4F,$80,$7D,$FF,$5C,$74,$C6,$C6,$05,$5C,$47,$EB,$C0,$93,$C3,
+$50,$41,$54,$48,$3D,$0D,$0A,$63,$61,$6E,$6E,$6F,$74,$20,$66,$69,
+$6E,$64,$20,$6C,$6F,$61,$64,$65,$72,$20,$44,$50,$4D,$49,$4C,$44,
+$31,$36,$2E,$45,$58,$45,$24,$00,$00,$00,$00,$00,$00,$00,$00,$00);
+
+{ ====================================================
+  Standard DOS stub for Windows PE files: prints
+  "This program cannot be run in DOS mode." and exits.
+  ==================================================== }
+CONST WIN_EXE_STUB : ARRAY[0..127] OF BYTE = (
+$4D,$5A,$80,$00,$01,$00,$00,$00,$04,$00,$00,$00,$FF,$FF,$00,$00,
+$B8,$00,$00,$00,$00,$00,$00,$00,$40,$00,$00,$00,$00,$00,$00,$00,
+$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,
+$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$80,$00,$00,$00,
+$0E,$1F,$BA,$0E,$00,$B4,$09,$CD,$21,$B8,$01,$4C,$CD,$21,$54,$68,
+$69,$73,$20,$70,$72,$6F,$67,$72,$61,$6D,$20,$63,$61,$6E,$6E,$6F,
+$74,$20,$62,$65,$20,$72,$75,$6E,$20,$69,$6E,$20,$44,$4F,$53,$20,
+$6D,$6F,$64,$65,$2E,$0D,$0D,$0A,$24,$00,$00,$00,$00,$00,$00,$00);
+
 IMPLEMENTATION
 
 END.

@@ -28,10 +28,10 @@ USES Dos, System2, Args, StrBin, rdffmt, rlo
         , rlomz
         , rloadam
         , rlole
-        , rlope
-        , rloqbe;
-
-{$DEFINE DEBUG1}
+        , rloqbe
+        , rlodef
+        , rlone
+        , rlowpe;
 
 FUNCTION basename(s : STRING) : STRING;
 VAR     i : INTEGER;
@@ -152,9 +152,6 @@ BEGIN
                         END;
                 END;
         END;
-        {$IFDEF DEBUG}
-        System.Writeln('Load ', fname);
-        {$ENDIF}
         FindFileInRlib := fname;
 END;
 
@@ -197,6 +194,9 @@ ARG_DOSPE  = 'dospe';
 ARG_ADAM   = 'adam';
 ARG_LE     = 'le';
 ARG_QLB    = 'qlb';
+ARG_NE     = 'ne';
+ARG_DEF    = 'def';
+ARG_RES    = 'res';
 ARG_ZRDX   = 'zrdx';
 ARG_HX     = 'hx';
 ARG_WINPE  = 'winpe';
@@ -204,24 +204,27 @@ ARG_STACK  = 's';
 ARG_NONAMES = 'nonames';
 LIB_ENV    = 'RLIB';
 
-OPTIONS_DESC : ARRAY[0..15] OF TOPT = (
+OPTIONS_DESC : ARRAY[0..19] OF TOPT = (
 (name: ARG_OUTPUT; otype: OPTSTR;  help: 'Set output file name.'),
 (name: ARG_ORG;    otype: OPTSTR;  help: 'Set code start offset for COM output.'; default:'0x0100'),
 (name: ARG_ENTRY;  otype: OPTSTR;  help: 'Set entry-point name.'; default:'start'),
 (name: ARG_STACK;  otype: OPTSTR;  help: 'Set stack size in KB.'; default:'8'),
 (name: ARG_BSS;    otype: OPTBOOL; help: 'Reserve BSS-memory for COM/RDF output.'),
+(name: ARG_DEF;    otype: OPTSTR;  help: 'NE, WINPE: module definition file (NAME, LIBRARY, EXPORTS, IMPORTS ...).'),
+(name: ARG_RES;    otype: OPTSTR;  help: 'NE: 16-bit .RES file, WINPE: 32-bit .RES file.'),
 (name: ARG_NONAMES; otype: OPTBOOL; help: 'QLB: leave the CODE table empty.'),
 (name: ARG_ZRDX;   otype: OPTBOOL; help: 'Bind ZRDX Dos-Extender to LE file.'),
-(name: ARG_HX;     otype: OPTBOOL; help: 'Bind HX Dos-Extender stub to PE file.'),
+(name: ARG_HX;     otype: OPTBOOL; help: 'dospe: bind HX Dos-Extender stub to PE file.'),
 (name: ARG_RDF;    otype: OPTCMD;  help: 'Link RDF file. Merge all segments into one code segment.'),
 (name: ARG_COM;    otype: OPTCMD;  help: 'Link COM file, tiny memory model.'),
 (name: ARG_MZS;    otype: OPTCMD;  help: 'Link MZ file, small memory model.'),
 (name: ARG_MZL;    otype: OPTCMD;  help: 'Link MZ file, large memory model.'),
 (name: ARG_ADAM;   otype: OPTCMD;  help: 'Link ADAM file (DOS32 Dos-Extender).'),
 (name: ARG_LE;     otype: OPTCMD;  help: 'Link LE file (old-style DPMI executable).'),
-(name: ARG_DOSPE;  otype: OPTCMD;  help: 'Link DOS-PE file (PE without imports).'),
-(name: ARG_QLB;    otype: OPTCMD;  help: 'Link QuickBASIC QuickLibrary (QLB). Entry-point is start-up/shut-down hook.') {,
-(name: ARG_WINPE;  otype: OPTCMD;  help: 'Link Win32-PE file.')}
+(name: ARG_DOSPE;  otype: OPTCMD;  help: 'Link DOS-PE file (DOS style PE32, imports, exports and resources).'),
+(name: ARG_NE;     otype: OPTCMD;  help: 'Link NE file (16-bit DPMI executable, one segment per module).'),
+(name: ARG_WINPE;  otype: OPTCMD;  help: 'Link Win32-PE file (exe or dll) with imports, exports and resources.'),
+(name: ARG_QLB;    otype: OPTCMD;  help: 'Link QuickBASIC QuickLibrary (QLB). Entry-point is start-up/shut-down hook.')
 );
 
 VAR     myArgs        : TARGSTATE;
@@ -235,11 +238,11 @@ VAR     myArgs        : TARGSTATE;
         build_plan    : IMAGE_BUILD_PLAN;
         i, arg_count  : INTEGER;
         err           : BOOLEAN;
-        strict_import : BOOLEAN;
         rlib          : STRING;
         r             : PRDFMETA;
         qbi           : BFILE;
         qbi_open      : BOOLEAN;
+        use_wpe       : BOOLEAN;
 BEGIN
         ArgsParse(myArgs, OPTIONS_DESC);
 
@@ -258,12 +261,14 @@ BEGIN
         IF ArgsError(myArgs) THEN Halt(1);
 
         rlib := getEnv(LIB_ENV);
-        {$IFDEF DEBUG}
-        System.Writeln('RLIB=', rlib);
-        {$ENDIF}
 
         cmd := GetCmd(myArgs);
-        IF (bin_ss < 0) OR (((cmd = ARG_COM) OR (cmd = ARG_MZS) OR (cmd = ARG_MZL)) AND (bin_ss > 64)) THEN BEGIN
+        use_wpe := (cmd = ARG_WINPE) OR (cmd = ARG_DOSPE);
+        IF (cmd = ARG_WINPE) AND GetOptBool(myArgs, ARG_HX) THEN BEGIN
+                System.Writeln('/hx is for dospe, winpe writes the standard Windows stub.');
+                Halt(1);
+        END;        IF (bin_ss < 0) OR (((cmd = ARG_COM) OR (cmd = ARG_MZS) OR (cmd = ARG_MZL)
+                OR (cmd = ARG_NE)) AND (bin_ss > 64)) THEN BEGIN
                 System.Writeln('Bad stack size (COM, MZ: 0..64 Kb).');
                 Halt(1);
         END;
@@ -293,9 +298,19 @@ BEGIN
                         END ELSE err := TRUE;
                 END;
         END;
-        IF cmd = ARG_DOSPE THEN strict_import := FALSE ELSE strict_import := TRUE;
-        IF NOT err THEN err := CreateBuildPlan(build_plan, entry_name, strict_import);
-        IF (NOT err) AND (cmd = ARG_QLB) THEN BEGIN
+        IF (NOT err) AND (cmd = ARG_NE) THEN err := NeSetup(GetOptStr(myArgs, ARG_DEF));
+        IF (NOT err) AND use_wpe THEN BEGIN
+                err := WpSetup(GetOptStr(myArgs, ARG_DEF));
+                IF (NOT err) AND WpBuildImports(qbi, err) THEN BEGIN
+                        qbi_open := TRUE;
+                        IF GET_FILE_TYPE(qbi) = FILE_RDF THEN
+                                build_plan.rdfs := GetRdfMetaInfo(build_plan.rdfs, qbi, build_plan.hdr)
+                        ELSE err := TRUE;
+                END;
+        END;
+        IF NOT err THEN err := CreateBuildPlan(build_plan, entry_name);
+        IF (NOT err) AND ((cmd = ARG_QLB) OR (use_wpe AND (is_dll OR (exp_count > 0)))
+                OR ((cmd = ARG_NE) AND (is_dll OR (exp_count > 0)))) THEN BEGIN
                 { library: link all modules, not only modules reachable from entry-point }
                 r := build_plan.rdfs;
                 WHILE (r <> NIL) AND (NOT err) DO BEGIN
@@ -303,17 +318,11 @@ BEGIN
                         r := r^.next;
                 END;
         END;
-        {$IFDEF DEBUG}
-        Assign(build_plan.linked_out, 'small.rdf');
-        ReWrite(build_plan.linked_out);
-        {$ENDIF}
-        {$IFNDEF DEBUG}
         ReWriteTemp(build_plan.linked_out);
         IF NOT IsOpen(build_plan.linked_out) THEN BEGIN
                 System.Writeln('Could not create temporary file (check TMP/TEMP).');
                 err := TRUE;
         END;
-        {$ENDIF}
         FreeOutOfPlan(build_plan);
         IF (NOT err) AND (cmd = ARG_MZL) THEN BEGIN
                 err := LinkAndGenMZL(build_plan, entry_name, outfname, bin_ss);
@@ -352,13 +361,23 @@ BEGIN
                         , entry_name
                         , outfname
                         , bin_ss, GetOptBool(myArgs, ARG_ZRDX));
-        END ELSE IF (NOT err) AND (cmd = ARG_DOSPE) THEN BEGIN
-                err := LinkSmallModel(build_plan);
-                DestroyPlan(build_plan);
-                IF NOT err THEN err := LinkAndGenDosPE(build_plan.linked_out
+        END ELSE IF (NOT err) AND (cmd = ARG_NE) THEN BEGIN
+                err := LinkAndGenNE(build_plan
                         , entry_name
                         , outfname
-                        , bin_ss, GetOptBool(myArgs, ARG_HX));
+                        , bin_ss
+                        , GetOptStr(myArgs, ARG_RES));
+                DestroyPlan(build_plan);
+        END ELSE IF (NOT err) AND use_wpe THEN BEGIN
+                err := LinkSmallModel(build_plan);
+                DestroyPlan(build_plan);
+                IF NOT err THEN err := LinkAndGenWinPE(build_plan.linked_out
+                        , entry_name
+                        , outfname
+                        , bin_ss
+                        , GetOptStr(myArgs, ARG_RES)
+                        , GetOptBool(myArgs, ARG_HX)
+                        , cmd = ARG_WINPE);
         END ELSE IF (NOT err) AND (cmd = ARG_QLB) THEN BEGIN
                 err := LinkAndGenQBE(build_plan
                         , entry_name

@@ -1,0 +1,5 @@
+NAME T04
+IMPORTS
+KERNEL32.FindResourceA
+KERNEL32.SizeofResource
+KERNEL32.ExitProcess

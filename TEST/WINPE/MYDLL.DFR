@@ -1,0 +1,7 @@
+LIBRARY MYDLL
+EXPORTS
+hello @1
+answer @5
+IMPORTS
+KERNEL32.GetStdHandle
+KERNEL32.WriteFile
