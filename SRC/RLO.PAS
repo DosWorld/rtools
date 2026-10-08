@@ -474,6 +474,7 @@ VAR     new_headers : BFile;
         bss_segnum  : WORD;
 
         fix         : DWORD;
+        rel         : BYTE;
 BEGIN
         FillChar(hdr, SizeOf(BFile), #0);
         FillChar(code, SizeOf(BFile), #0);
@@ -545,6 +546,7 @@ BEGIN
                 Seek(hdr, 0);
                 WHILE RDF_LOOKUPREC(hdr, RREC_RELOC, c) AND (NOT err) DO BEGIN
                         GET_RELOC_REC(c, rec);
+                        rel := rec.seg AND $40;
                         rec.seg := rec.seg AND $3F;
 
                         IF rec.seg = code_segnum THEN BEGIN
@@ -557,11 +559,12 @@ BEGIN
                         END ELSE IF rec.seg = data_segnum THEN BEGIN
                                 fix := 0;
                                 IF rec.rseg = code_segnum THEN
-                                        fix := code_ofs - data_ofs
+                                        fix := code_ofs
                                 ELSE IF rec.rseg = data_segnum THEN
                                         fix := data_ofs
                                 ELSE IF merge_bss AND (rec.rseg = bss_segnum) THEN
-                                        fix := bss_ofs - data_ofs;
+                                        fix := bss_ofs;
+                                IF rel <> 0 THEN fix := fix - data_ofs;
                                 IncMem(data, rec.width, rec.offset, fix);
                                 Inc(rec.offset, data_ofs);
                                 rec.seg := code_segnum;
@@ -569,6 +572,7 @@ BEGIN
                         IF (rec.rseg = data_segnum)
                                 OR ((rec.rseg = bss_segnum) AND merge_bss)
                                 THEN rec.rseg := code_segnum;
+                        rec.seg := rec.seg OR rel;
                         SET_RELOC_REC(rec, c);
                         RDF_WRITE_REC(new_headers, RREC_RELOC, c);
                 END;
