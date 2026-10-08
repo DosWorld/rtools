@@ -121,6 +121,9 @@ Modules that RLINK generates (the import thunks) are shown as
 * `rlib d LIB.RDL NAME` deletes a module.
 * `rlib x LIB.RDL NAME FILE.RDF` extracts a module.
 
+The format of the library is that of `rdflib.c` of NASM, see
+section 6 of `DOC\RDOFF2.TXT`.
+
 ## Builtin stubs and extenders
 
 The stub can be changed later with `restub` (see below).
