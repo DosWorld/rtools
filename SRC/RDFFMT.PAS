@@ -372,9 +372,12 @@ BEGIN
         WriteDWord(f, dst.seglen);
 END;
 
+{ A library (rdflib.c of NASM) begins with the entry .sig: the name,
+  the signature RDLIB2, the size of the time stamp, the time stamp. }
 FUNCTION GET_FILE_TYPE(VAR f : BFILE) : RDF_FILE_TYPE;
 VAR     r     : RDF_FILE_TYPE;
         sign1 : STRING[6];
+        sign2 : STRING[11];
 BEGIN
         r := FILE_UNKNOWN;
         Seek(f, 0);
@@ -382,11 +385,13 @@ BEGIN
         sign1[0] := #6;
         IF sign1 = RDOFF2_SIGN THEN BEGIN
                 r := FILE_RDF;
-        END ELSE IF sign1 = RLIB_SIGN THEN BEGIN
-                Seek(f, 6);
-                r := FILE_RDL;
+        END ELSE IF FileSize(f) >= 11 THEN BEGIN
+                Seek(f, 0);
+                BlockRead(f, sign2[1], 11);
+                sign2[0] := #11;
+                IF sign2 = RLIB_MODNAME + RLIB_SIGN THEN r := FILE_RDL;
         END;
-        IF r IN [FILE_UNKNOWN,FILE_RDF] THEN Seek(f, 0);
+        Seek(f, 0);
         GET_FILE_TYPE := r;
 END;
 
@@ -405,6 +410,9 @@ BEGIN
                 Seek(f, p + ORD(modname[0]) + 1);
                 IF modname[0] > #0 THEN
                         IF modname[1] <> '.' THEN BEGIN r := TRUE; BREAK; END;
+                { a name with a dot: the type and the version (6 bytes),
+                  the size of the data (4 bytes) and the data }
+                Seek(f, FilePos(f) + Length(RLIB_SIGN));
                 p := ReadDWord(f);
                 Seek(f, FilePos(f) + p);
         END;
@@ -448,10 +456,10 @@ PROCEDURE RDL_CREATE(VAR f : BFILE);
 BEGIN
         IF IsOpen(f) THEN BEGIN
                 Seek(f, 0);
-                Write(f, RLIB_SIGN);
                 Write(f, RLIB_MODNAME);
-                WriteDWord(f, SizeOf(DWORD));
-                WriteDWord(f, 0);
+                Write(f, RLIB_SIGN);
+                WriteDWord(f, SizeOf(DWORD));   { the size of the time stamp }
+                WriteDWord(f, 0);               { no time stamp }
                 Truncate(f);
         END;
 END;
