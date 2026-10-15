@@ -155,12 +155,12 @@ BEGIN
 
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 SetMem(code, RWIDTH16
-                                        , (r^.linker.hmz_code_seg SHL 4) + rrec.offset
+                                        , (DWORD(r^.linker.hmz_code_seg) SHL 4) + rrec.offset
                                         , fix);
                                 mzr.seg := r^.linker.hmz_code_seg;
                         END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
                                 SetMem(code, RWIDTH16
-                                        , (r^.linker.hmz_data_seg SHL 4) + rrec.offset
+                                        , (DWORD(r^.linker.hmz_data_seg) SHL 4) + rrec.offset
                                         , fix);
                                 mzr.seg := r^.linker.hmz_data_seg;
                         END;
@@ -202,11 +202,11 @@ BEGIN
 
                         IF rrec.seg = r^.code_segnum THEN BEGIN
                                 IncMem(code, RWIDTH16
-                                        , (r^.linker.hmz_code_seg SHL 4) + rrec.offset
+                                        , (DWORD(r^.linker.hmz_code_seg) SHL 4) + rrec.offset
                                         , fix);
                         END ELSE IF rrec.seg = r^.data_segnum THEN BEGIN
                                 IncMem(code, RWIDTH16
-                                        , (r^.linker.hmz_data_seg SHL 4) + rrec.offset
+                                        , (DWORD(r^.linker.hmz_data_seg) SHL 4) + rrec.offset
                                         , fix);
                         END;
                 END;
