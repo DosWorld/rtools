@@ -2,68 +2,114 @@
 
 Copyright (c) 2022 Viacheslav Komenda
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-USES system2, args, rdffmt;
+USES system2, args, rdffmt, rfiles;
 
-PROCEDURE bin2rdf(inp : STRING; VAR out : STRING; VAR name : RDFNAME; is_code : BOOLEAN);
-VAR     i, o            : BFile;
-        code, data, hdr : BFile;
-        rec             : REXP_REC;
-        str             : STRING;
+PROCEDURE FinishFile(VAR f: BFILE; VAR ok: BOOLEAN);
+VAR name: STRING;
 BEGIN
-        Assign(i, inp);
-        Reset(i);
-        Assign(o, out);
-        Rewrite(o);
-        ReWriteTemp(hdr);
-        ReWriteTemp(code);
-        ReWriteTemp(data);
+    name := f.filename;
+    IF NOT CloseChecked(f) THEN BEGIN
+        System.Writeln('Could not flush/close ', name, '.');
+        ok := FALSE;
+    END;
+END;
 
-        IF IsOpen(i) AND IsOpen(o) AND IsOpen(hdr) AND IsOpen(code) AND IsOpen(data) THEN BEGIN
-                IF is_code THEN BlockCopy(i, code, FileSize(i))
-                ELSE BlockCopy(i, data, FileSize(i));
+FUNCTION bin2rdf(inp : STRING; VAR out : STRING;
+    VAR name : RDFNAME; is_code : BOOLEAN): BOOLEAN;
+VAR     i, o            : BFile;
+    code, data, hdr : BFile;
+    rec             : REXP_REC;
+    str             : STRING;
+    ok              : BOOLEAN;
+BEGIN
+    bin2rdf := FALSE; ok := TRUE;
+    FillChar(o, SizeOf(o), 0);
+    IF SameFile(inp, out) THEN BEGIN
+        System.Writeln('Input and output must differ.');
+        EXIT;
+    END;
+    Assign(i, inp);
+    Reset(i);
+    IF NOT IsOpen(i) THEN BEGIN
+        System.Writeln('Could not open/read ', inp, '.');
+        EXIT;
+    END;
+    IF NOT StartOutput(o, out) THEN BEGIN
+        System.Writeln('Could not create output for ', out, '.');
+        FinishFile(i, ok); EXIT;
+    END;
+    ReWriteTemp(hdr);
+    ReWriteTemp(code);
+    ReWriteTemp(data);
 
-                FillChar(rec, SizeOf(rec), #0);
-                rec.name := name;
-                IF is_code THEN rec.seg := 0 ELSE rec.seg := 1;
-                SET_EXPORT_REC(rec, str);
-                RDF_WRITE_REC(hdr, RREC_GLOBAL, str);
+    IF IsOpen(i) AND IsOpen(o) AND IsOpen(hdr) AND IsOpen(code)
+        AND IsOpen(data) THEN BEGIN
+        IF is_code THEN
+            ok := BlockCopy(i, code, FileSize(i))
+                = FileSize(i)
+        ELSE ok := BlockCopy(i, data, FileSize(i))
+                = FileSize(i);
+        IF NOT ok THEN System.Writeln(
+            'Could not copy input ', inp, '.');
 
-                FillChar(rec, SizeOf(rec), #0);
-                rec.name := name + '_SIZE';
-                rec.seg := 1;
-                rec.offset := FilePos(data);
-                SET_EXPORT_REC(rec, str);
-                RDF_WRITE_REC(hdr, RREC_GLOBAL, str);
-                WriteDWord(data, FileSize(i));
+        FillChar(rec, SizeOf(rec), #0);
+        rec.name := name;
+        IF is_code THEN rec.seg := 0 ELSE rec.seg := 1;
+        SET_EXPORT_REC(rec, str);
+        RDF_WRITE_REC(hdr, RREC_GLOBAL, str);
 
-                WRITE_RDF(hdr, 0, code, 1, data, o);
-        END ELSE SetDeleteOnClose(o, TRUE);
+        FillChar(rec, SizeOf(rec), #0);
+        rec.name := name + '_SIZE';
+        rec.seg := 1;
+        rec.offset := FilePos(data);
+        SET_EXPORT_REC(rec, str);
+        RDF_WRITE_REC(hdr, RREC_GLOBAL, str);
+        WriteDWord(data, FileSize(i));
 
-        Close(hdr);
-        Close(code);
-        Close(data);
-        Close(i);
-        Close(o);
+        ok := ok AND (hdr.werror = 0)
+            AND (code.werror = 0)
+            AND (data.werror = 0);
+        IF NOT ok THEN System.Writeln(
+            'Could not write temporary data for ', out, '.');
+        IF ok THEN WRITE_RDF(hdr, 0, code, 1, data, o);
+    END ELSE BEGIN
+        System.Writeln('Could not create temporary files.');
+        ok := FALSE;
+    END;
+
+    FinishFile(hdr, ok);
+    FinishFile(code, ok);
+    FinishFile(data, ok);
+    FinishFile(i, ok);
+    IF ok THEN BEGIN
+        ok := CommitOutput(o, out);
+        IF NOT ok THEN System.Writeln(
+            'Could not flush/close/replace ', out, '.');
+    END ELSE CancelOutput(o);
+    bin2rdf := ok;
 END;
 
 CONST
@@ -72,30 +118,40 @@ ARG_ENTRY  = 'name';
 ARG_CODE   = 'code';
 
 OPTIONS_DESC : ARRAY[0..2] OF TOPT = (
-(name: ARG_OUTPUT; otype: OPTSTR;  help: 'Set output rdf-file name.'),
+(name: ARG_OUTPUT; otype: OPTSTR;  help:
+    'Set output rdf-file name.'),
 (name: ARG_ENTRY;  otype: OPTSTR;  help: 'Set rdf-symbol name.'),
-(name: ARG_CODE;   otype: OPTBOOL; help: 'Put binary blob into CODE segment (instead DATA).')
+(name: ARG_CODE;   otype: OPTBOOL; help:
+    'Put binary blob into CODE segment (instead DATA).')
 );
 
 VAR     myArgs     : TARGSTATE;
-        is_code    : BOOLEAN;
-        outfname   : STRING;
-        entry_name : RDFNAME;
-        arg_count  : INTEGER;
+    is_code    : BOOLEAN;
+    outfname   : STRING;
+    entry_name : RDFNAME;
+    name_opt   : STRING;
+    arg_count  : INTEGER;
 BEGIN
-        ArgsParse(myArgs, OPTIONS_DESC);
+    ArgsParse(myArgs, OPTIONS_DESC);
 
-        outfname := GetOptStr(myArgs, ARG_OUTPUT);
-        entry_name := GetOptStr(myArgs, ARG_ENTRY);
-        is_code := GetOptBool(myArgs, ARG_CODE);
+    outfname := GetOptStr(myArgs, ARG_OUTPUT);
+    name_opt := GetOptStr(myArgs, ARG_ENTRY);
+    entry_name := name_opt;
+    IF Length(name_opt) > 59 THEN SetArgsErr(myArgs,
+        'Symbol name exceeds 59 bytes (with _SIZE suffix).');
+    is_code := GetOptBool(myArgs, ARG_CODE);
 
-        IF Length(outfname) = 0 THEN SetArgsErr(myArgs, 'No output file.');
-        IF Length(entry_name) = 0 THEN SetArgsErr(myArgs, 'No symbol name.');
-        IF ArgsCount(myArgs) <> 1 THEN SetArgsErr(myArgs, 'No input file.');
+    IF Length(outfname) = 0 THEN SetArgsErr(myArgs,
+        'No output file.');
+    IF Length(entry_name) = 0 THEN SetArgsErr(myArgs,
+        'No symbol name.');
+    IF ArgsCount(myArgs) <> 1 THEN SetArgsErr(myArgs,
+        'No input file.');
 
-        WriteArgsErrors(myArgs);
-        IF ArgsError(myArgs) THEN Halt(1);
+    WriteArgsErrors(myArgs);
+    IF ArgsError(myArgs) THEN Halt(1);
 
-        arg_count := ArgsCount(myArgs);
-        bin2rdf(GetArgsStr(myArgs, 1), outfname, entry_name, is_code);
+    arg_count := ArgsCount(myArgs);
+    IF NOT bin2rdf(GetArgsStr(myArgs, 1), outfname,
+        entry_name, is_code) THEN Halt(1);
 END.

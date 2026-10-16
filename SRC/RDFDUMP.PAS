@@ -2,27 +2,39 @@
 
 Copyright (c) 2022 Viacheslav Komenda
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
+Permission is hereby granted, free of charge, to any person
+obtaining a copy
+of this software and associated documentation files (the
+"Software"), to deal
+in the Software without restriction, including without limitation
+the rights
+to use, copy, modify, merge, publish, distribute, sublicense,
+and/or sell
+copies of the Software, and to permit persons to whom the
+Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
+The above copyright notice and this permission notice shall be
+included in all
 copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE
 SOFTWARE.
 
 https://github.com/DosWorld/rtools }
 {$A+,I+,S-,R-,D-,L-,Q-,F-,G-}
-USES system2, rdffmt;
+USES system2, rdffmt, rvalid;
 
 CONST
 
@@ -61,7 +73,8 @@ END;
 
 FUNCTION hexdw(dw : LONGINT):STRING;
 BEGIN
-        hexdw := hexw((dw SHR 16) AND $ffff) + hexw(dw AND $ffff);
+        hexdw := hexw((dw SHR 16) AND $ffff) + hexw(dw AND
+            $ffff);
 END;
 
 PROCEDURE WriteRelo(VAR rdata:STRING);
@@ -105,7 +118,8 @@ VAR
 BEGIN
         l := Length(rdata);
         IF l > 16 THEN l := 16;
-        FOR i := 1 TO l DO System.Write(hexb(ORD(rdata[i])), ' ');
+        FOR i := 1 TO l DO System.Write(hexb(ORD(rdata[i])),
+            ' ');
 END;
 
 PROCEDURE DumpRec(rtype : CHAR; VAR rdata : STRING);
@@ -172,7 +186,8 @@ BEGIN
                 System.Write(hexdw(seglen), ' ');
                 System.Write(hexb(segtype), '-');
                 IF segtype = 1 THEN System.Write('CODE     ')
-                ELSE IF segtype = 2 THEN System.Write('DATA     ')
+                ELSE IF segtype = 2 THEN System.Write(
+                'DATA     ')
                 ELSE System.Write('??       ');
                 System.Write(' NUM: ',hexw(segnum), ' ');
                 System.Write(' RES: ',hexw(reserv));
@@ -189,8 +204,10 @@ VAR     f      : BFILE;
         hdrlen : LONGINT;
         rtype  : CHAR;
         rdata  : STRING;
+        info   : TRdfInfo;
 BEGIN
-        System.Writeln('RDFDUMP for NASM-0.98.39  (c) 2022 by DosWorld.  MIT License');
+        System.Writeln(
+'RDFDUMP for NASM-0.98.39  (c) 2022 by DosWorld.  MIT License');
         System.Writeln;
         IF PARAMCOUNT <> 1 THEN BEGIN
                 WriteLnErr('usage: RDFDUMP filename.rdf');
@@ -203,15 +220,23 @@ BEGIN
                 Halt(1);
         END;
         fullen := FileSize(f);
+        IF (NOT CheckRdf(f, fullen, info)) OR
+        (info.finish <> fullen) THEN BEGIN
+                WriteLnErr('Invalid RDF input.');
+                Close(f); Halt(1);
+        END;
         BlockRead(f, sign[1], 6);
         BlockRead(f, modlen, SizeOf(LONGINT));
         BlockRead(f, hdrlen, SizeOf(LONGINT));
         sign[0] := #6;
         System.Writeln('File name:   ', ParamStr(1));
-        System.Writeln('File size:   ', hexdw(fullen), ' ', fullen);
+        System.Writeln('File size:   ', hexdw(fullen), ' ',
+            fullen);
         System.WriteLn('Signature:   ', sign);
-        System.WriteLn('Module size: ', hexdw(modlen), ' ', modlen);
-        System.WriteLn('Header size: ', hexdw(hdrlen), ' ', hdrlen);
+        System.WriteLn('Module size: ', hexdw(modlen), ' ',
+            modlen);
+        System.WriteLn('Header size: ', hexdw(hdrlen), ' ',
+            hdrlen);
         System.WriteLn;
         System.WriteLn('Header record(s)');
         System.WriteLn;
@@ -222,7 +247,8 @@ BEGIN
                 Dec(hdrlen, 2);
                 BlockRead(f, rdata[1], ORD(rdata[0]));
                 Dec(hdrlen, ORD(rdata[0]));
-                System.Write(hexb(ORD(rdata[0])), ' ', hexb(ORD(rtype)), '-');
+                System.Write(hexb(ORD(rdata[0])), ' ', hexb(ORD(
+                rtype)), '-');
                 DumpRec(rtype, rdata);
                 System.Writeln;
         END;
